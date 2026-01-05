@@ -24,7 +24,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local CHECKPOINT_REACH = 10
     local NEARBY_MOB_RADIUS = 75
 
-    local SPECIAL_MOB_RANGE = 150 -- distance pour attaquer Grandtree Tucker & Blightwyrm
+    local SPECIAL_MOB_RANGE = 250 -- distance pour attaquer Grandtree Tucker & Blightwyrm
     local AttackDelay = 1
     local SpellDelay = 0.05
 
