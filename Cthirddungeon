@@ -1,5 +1,5 @@
 -- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints + bosses distance dynamique
+-- Auto farm + kiting + checkpoints + bosses distance dynamique + debug prints
 
 return function(AutoFarmRef, AutoSpellRef)
 
@@ -92,6 +92,7 @@ return function(AutoFarmRef, AutoSpellRef)
             local root = GetRoot(enemies["Grandtree Tucker"])
             if root then
                 local dist = (root.Position - HRP.Position).Magnitude
+                print(string.format("Distance Grandtree Tucker: %.2f", dist))
                 return root, dist
             end
         end
@@ -101,6 +102,7 @@ return function(AutoFarmRef, AutoSpellRef)
             local root = GetRoot(enemies["Blightwyrm"])
             if root then
                 local dist = (root.Position - HRP.Position).Magnitude
+                print(string.format("Distance Blightwyrm: %.2f", dist))
                 return root, dist
             end
         end
@@ -178,10 +180,11 @@ return function(AutoFarmRef, AutoSpellRef)
         -- =========================
         -- COMBAT
         if target then
-            -- définir dynamiquement ATTACK_MAX_DISTANCE
+            -- distance dynamique pour boss
             local currentAttackMax = ATTACK_MAX_DISTANCE_NORMAL
             if target.Name == "Grandtree Tucker" or target.Name == "Blightwyrm" then
                 currentAttackMax = ATTACK_MAX_DISTANCE_BOSS
+                print(string.format("--> Tu peux attaquer %s ! Distance: %.2f", target.Name, distance))
             end
 
             local mobPos = target.Position
@@ -197,6 +200,7 @@ return function(AutoFarmRef, AutoSpellRef)
             end
 
             if (mobPos - myPos).Magnitude <= currentAttackMax then
+                print(string.format("Attaquer %s maintenant ! Distance: %.2f", target.Name, distance))
                 if tick() - LastSwingTime >= AttackDelay then
                     ReplicatedStorage.Swing:FireServer()
                     LastSwingTime = tick()
