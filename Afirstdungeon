@@ -1,6 +1,3 @@
--- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints (FIXED & STABLE)
-
 return function(AutoFarmRef, AutoSpellRef)
 
     -- =========================
