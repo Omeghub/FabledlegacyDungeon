@@ -1,6 +1,5 @@
 -- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints (FIXED & STABLE)
--- Auteur : Optimisé pour kiting + lookAt mob
+-- Auto farm + kiting + checkpoints (FLUID KITING VERSION)
 
 return function(AutoFarmRef, AutoSpellRef)
 
@@ -19,9 +18,11 @@ return function(AutoFarmRef, AutoSpellRef)
     local ATTACK_MIN_DISTANCE = 4
     local ATTACK_MAX_DISTANCE = 15
     local MOVE_MIN_DISTANCE = 4
-    local BACK_STEP = 3
+    local BACK_STEP = 3 -- distance totale du recul
+    local BACK_DURATION = 0.25 -- durée du recul en secondes
+    local BACK_SPEED = BACK_STEP / BACK_DURATION -- vitesse pour BodyVelocity
 
-    local MOVE_REFRESH = 0.3 -- fréquence des décisions (anti jitter)
+    local MOVE_REFRESH = 0.3 -- fréquence des décisions
     local CHECKPOINT_REACH = 5
     local NEARBY_MOB_RADIUS = 75
 
@@ -139,6 +140,10 @@ return function(AutoFarmRef, AutoSpellRef)
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
 
+        local myPos = HRP.Position
+        local target = GetBestTarget()
+        local moveTarget = nil
+
         -- =========================
         -- COMPLETION CHECK
         local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
@@ -148,10 +153,6 @@ return function(AutoFarmRef, AutoSpellRef)
             end
         end
         if GameCompleted then return end
-
-        local myPos = HRP.Position
-        local target = GetBestTarget()
-        local moveTarget = nil
 
         -- =========================
         -- CHECKPOINT VALIDATION
@@ -167,21 +168,28 @@ return function(AutoFarmRef, AutoSpellRef)
         end
 
         -- =========================
-        -- COMBAT & KITING
+        -- COMBAT & KITING FLUIDE
         if target then
             local mobPos = target.Position
-            local dir = mobPos - myPos
-            local distance = math.max(dir.Magnitude, 0.1)
-            dir = dir.Unit
+            local dir = (mobPos - myPos).Unit
+            local distance = (mobPos - myPos).Magnitude
 
-            -- Détermination du mouvement
-            if distance > ATTACK_MIN_DISTANCE then
-                moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
-            elseif distance < MOVE_MIN_DISTANCE then
-                moveTarget = myPos - dir * BACK_STEP
+            -- Gestion du recul avec BodyVelocity
+            if distance < MOVE_MIN_DISTANCE then
+                local bodyVel = Instance.new("BodyVelocity")
+                bodyVel.Velocity = -dir * BACK_SPEED
+                bodyVel.MaxForce = Vector3.new(4000, 0, 4000)
+                bodyVel.Parent = HRP
+                task.wait(BACK_DURATION)
+                bodyVel:Destroy()
+            else
+                -- Déplacement normal vers la cible si trop loin
+                if distance > ATTACK_MIN_DISTANCE then
+                    moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
+                end
             end
 
-            -- Toujours regarder le mob même en recul
+            -- Toujours regarder le mob
             HRP.CFrame = CFrame.lookAt(
                 HRP.Position,
                 Vector3.new(mobPos.X, HRP.Position.Y, mobPos.Z)
@@ -214,7 +222,7 @@ return function(AutoFarmRef, AutoSpellRef)
         end
 
         -- =========================
-        -- EXÉCUTION DU DÉPLACEMENT
+        -- EXECUTION DU DÉPLACEMENT NORMAL
         if moveTarget then
             local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
             if (finalPos - myPos).Magnitude > 0.1 then
