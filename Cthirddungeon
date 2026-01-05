@@ -1,5 +1,5 @@
 -- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints (FIXED & STABLE)
+-- Auto farm + kiting + checkpoints + Blightwyrm & Grandtree Tucker (boss distance 55)
 
 return function(AutoFarmRef, AutoSpellRef)
 
@@ -16,13 +16,14 @@ return function(AutoFarmRef, AutoSpellRef)
     -- =========================
     -- CONFIG
     local ATTACK_MIN_DISTANCE = 3
-    local ATTACK_MAX_DISTANCE = 55
+    local ATTACK_MAX_DISTANCE = 25 -- mobs normaux
     local MOVE_MIN_DISTANCE = 3
     local BACK_STEP = 4
 
     local MOVE_REFRESH = 0.3 -- fréquence des décisions (anti jitter)
     local CHECKPOINT_REACH = 10
     local NEARBY_MOB_RADIUS = 75
+    local BOSS_ATTACK_DISTANCE = 55 -- distance spéciale pour Blightwyrm & Grandtree Tucker
 
     local AttackDelay = 1
     local SpellDelay = 0.05
@@ -87,6 +88,7 @@ return function(AutoFarmRef, AutoSpellRef)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
+        -- Boss priority
         if IsMobAlive("Blightwyrm") then
             return GetRoot(enemies["Blightwyrm"])
         end
@@ -94,6 +96,7 @@ return function(AutoFarmRef, AutoSpellRef)
             return GetRoot(enemies["Grandtree Tucker"])
         end
 
+        -- Normal mobs
         local closest, dist = nil, math.huge
         for _, mob in ipairs(enemies:GetChildren()) do
             if mob:IsA("Model") then
@@ -136,8 +139,7 @@ return function(AutoFarmRef, AutoSpellRef)
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
 
-        -- =========================
-        -- COMPLETION CHECK
+        -- Completion check
         local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
         if completionScreen and completionScreen:FindFirstChild("CompletionBorder") then
             if completionScreen.CompletionBorder.Visible then
@@ -150,11 +152,9 @@ return function(AutoFarmRef, AutoSpellRef)
         local target = GetBestTarget()
         local moveTarget = nil
 
-        -- =========================
-        -- CHECKPOINT VALIDATION (TOUJOURS)
+        -- Checkpoint validation
         if checkpoints[CurrentCheckpointIndex]
         and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
-
             local cp = checkpoints[CurrentCheckpointIndex]
             local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
             local flatCP = Vector3.new(cp.X, 0, cp.Z)
@@ -173,10 +173,13 @@ return function(AutoFarmRef, AutoSpellRef)
             local distance = math.max(dir.Magnitude, 0.1)
             dir = dir.Unit
 
-            HRP.CFrame = CFrame.lookAt(
-                myPos,
-                Vector3.new(mobPos.X, myPos.Y, mobPos.Z)
-            )
+            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
+
+            -- Adjust attack distance for bosses
+            local maxAttackDist = ATTACK_MAX_DISTANCE
+            if target.Name == "Blightwyrm" or target.Name == "Grandtree Tucker" then
+                maxAttackDist = BOSS_ATTACK_DISTANCE
+            end
 
             if distance > ATTACK_MIN_DISTANCE then
                 moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
@@ -184,7 +187,7 @@ return function(AutoFarmRef, AutoSpellRef)
                 moveTarget = myPos - dir * BACK_STEP
             end
 
-            if distance <= ATTACK_MAX_DISTANCE then
+            if distance <= maxAttackDist then
                 if tick() - LastSwingTime >= AttackDelay then
                     ReplicatedStorage.Swing:FireServer()
                     LastSwingTime = tick()
@@ -203,8 +206,7 @@ return function(AutoFarmRef, AutoSpellRef)
             end
         end
 
-        -- =========================
-        -- CHECKPOINT MOVE (SEULEMENT SI PAS DE MOB)
+        -- Move to checkpoint if no target
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
