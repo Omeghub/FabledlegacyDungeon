@@ -40,7 +40,8 @@ return function(AutoFarmRef, AutoSpellRef)
         Vector3.new(-616.850, -59.319, -1441.146),
         Vector3.new(-618.274, -97.200, -1544.936),
         Vector3.new(-623.651, -97.092, -1638.400),
-        Vector3.new(-634.332, -80.281, -1730.566)
+        Vector3.new(-634.332, -80.281, -1730.566),
+        Vector3.new(-652.731, -87.849, -1864.912)
     }
 
     local CurrentCheckpointIndex = 1
