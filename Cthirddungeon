@@ -1,8 +1,10 @@
 -- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints + boss attack fixes + déplacement vers boss
+-- Auto farm + kiting + checkpoints + Bosses (Blightwyrm, Grandtree Tucker, Cursed Centaur)
 
 return function(AutoFarmRef, AutoSpellRef)
 
+    -- =========================
+    -- SERVICES
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -11,6 +13,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local LocalPlayer = Players.LocalPlayer
     local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
+    -- =========================
     -- CONFIG
     local ATTACK_MIN_DISTANCE = 3
     local ATTACK_MAX_DISTANCE = 25 -- normal mobs
@@ -21,10 +24,12 @@ return function(AutoFarmRef, AutoSpellRef)
     local CHECKPOINT_REACH = 10
     local NEARBY_MOB_RADIUS = 75
 
-    local BOSS_ATTACK_DISTANCE = 55
+    local BOSS_ATTACK_DISTANCE = 55 -- distance pour attaquer les boss
     local AttackDelay = 1
     local SpellDelay = 0.05
 
+    -- =========================
+    -- CHECKPOINTS
     local checkpoints = {
         Vector3.new(1617.571, 115.575, 375.359),
         Vector3.new(1759.396, 115.575, 361.754),
@@ -43,19 +48,25 @@ return function(AutoFarmRef, AutoSpellRef)
         Vector3.new(3167.896, 115.575, 918.274),
         Vector3.new(3333.574, 115.575, 955.456)
     }
-
     local CurrentCheckpointIndex = 1
 
+    -- =========================
+    -- STATE
     local Character, HRP, Humanoid
-    local LastMoveTime, LastSwingTime, LastCheckpointTime = 0, 0, 0
+    local LastMoveTime = 0
+    local LastSwingTime = 0
+    local LastCheckpointTime = 0
     local GameCompleted = false
     local CHECKPOINT_COOLDOWN = 1
 
-    -- UTIL
+    -- =========================
+    -- UTILS
     local function GetRoot(model)
         if model.PrimaryPart then return model.PrimaryPart end
         for _, v in ipairs(model:GetDescendants()) do
-            if v:IsA("BasePart") then return v end
+            if v:IsA("BasePart") then
+                return v
+            end
         end
         return nil
     end
@@ -75,13 +86,18 @@ return function(AutoFarmRef, AutoSpellRef)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        if IsMobAlive("Blightwyrm") then
-            return GetRoot(enemies["Blightwyrm"])
-        end
-        if IsMobAlive("Grandtree Tucker") then
-            return GetRoot(enemies["Grandtree Tucker"])
+        -- Priorité bosses
+        for _, bossName in ipairs({"Blightwyrm", "Grandtree Tucker", "Cursed Centaur"}) do
+            if IsMobAlive(bossName) then
+                local root = GetRoot(enemies[bossName])
+                if root then
+                    print("--> Distance " .. bossName .. ": " .. math.floor((root.Position - HRP.Position).Magnitude*100)/100)
+                    return root, true -- le second return indique que c'est un boss
+                end
+            end
         end
 
+        -- Mobs normaux
         local closest, dist = nil, math.huge
         for _, mob in ipairs(enemies:GetChildren()) do
             if mob:IsA("Model") then
@@ -96,7 +112,8 @@ return function(AutoFarmRef, AutoSpellRef)
                 end
             end
         end
-        return closest
+
+        return closest, false
     end
 
     local function SetupCharacter(char)
@@ -106,12 +123,16 @@ return function(AutoFarmRef, AutoSpellRef)
         Humanoid.AutoRotate = true
     end
 
-    if LocalPlayer.Character then SetupCharacter(LocalPlayer.Character) end
+    if LocalPlayer.Character then
+        SetupCharacter(LocalPlayer.Character)
+    end
+
     LocalPlayer.CharacterAdded:Connect(function(char)
         task.wait(1)
         SetupCharacter(char)
     end)
 
+    -- =========================
     -- MAIN LOOP
     RunService.Heartbeat:Connect(function()
         if not AutoFarmRef.Value then return end
@@ -119,53 +140,53 @@ return function(AutoFarmRef, AutoSpellRef)
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
 
-        local myPos = HRP.Position
-        local target = GetBestTarget()
-        local moveTarget = nil
-        local currentAttackMax = ATTACK_MAX_DISTANCE
-
-        -- completion check
+        -- Completion check
         local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
         if completionScreen and completionScreen:FindFirstChild("CompletionBorder") then
-            if completionScreen.CompletionBorder.Visible then GameCompleted = true end
+            if completionScreen.CompletionBorder.Visible then
+                GameCompleted = true
+            end
         end
         if GameCompleted then return end
 
-        -- checkpoint
-        if checkpoints[CurrentCheckpointIndex] and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
+        local myPos = HRP.Position
+        local target, isBoss = GetBestTarget()
+        local moveTarget = nil
+
+        -- Checkpoint validation
+        if checkpoints[CurrentCheckpointIndex]
+        and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
             local cp = checkpoints[CurrentCheckpointIndex]
-            local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
-            local flatCP = Vector3.new(cp.X, 0, cp.Z)
+            local flatMy = Vector3.new(myPos.X,0,myPos.Z)
+            local flatCP = Vector3.new(cp.X,0,cp.Z)
             if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
                 CurrentCheckpointIndex += 1
                 LastCheckpointTime = tick()
             end
         end
 
-        -- combat
+        -- Combat
         if target then
             local mobPos = target.Position
-            local dir = (mobPos - myPos).Unit
-            local distance = (mobPos - myPos).Magnitude
+            local dir = mobPos - myPos
+            local distance = math.max(dir.Magnitude, 0.1)
+            dir = dir.Unit
 
             HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
 
-            -- bosses
-            local targetName = target.Parent.Name
-            if targetName == "Blightwyrm" or targetName == "Grandtree Tucker" then
-                currentAttackMax = BOSS_ATTACK_DISTANCE
-            end
-
-            -- FORCE déplacement vers target si boss ou trop loin
-            if distance > currentAttackMax then
+            if distance > ATTACK_MIN_DISTANCE then
                 moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
             elseif distance < MOVE_MIN_DISTANCE then
                 moveTarget = myPos - dir * BACK_STEP
             end
 
-            print(targetName.." distance: "..string.format("%.2f", distance))
-            if distance <= currentAttackMax then
-                print("--> Tu peux attaquer "..targetName.." !")
+            -- Ajuste dynamique de ATTACK_MAX_DISTANCE pour les boss
+            local attackDistance = ATTACK_MAX_DISTANCE
+            if isBoss then
+                attackDistance = BOSS_ATTACK_DISTANCE
+            end
+
+            if distance <= attackDistance then
                 if tick() - LastSwingTime >= AttackDelay then
                     ReplicatedStorage.Swing:FireServer()
                     LastSwingTime = tick()
@@ -184,12 +205,11 @@ return function(AutoFarmRef, AutoSpellRef)
             end
         end
 
-        -- move to checkpoint si pas de mob
+        -- Move vers checkpoint si pas de target
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
-        -- déplacement final
         if moveTarget then
             local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
             if (finalPos - myPos).Magnitude > 0.1 then
