@@ -1,1 +1,50 @@
-print("hello")
+-- RaidedVillage.lua
+-- Checkpoints et bosses prioritaires pour ce dungeon
+
+local checkpoints = {
+    Vector3.new(1653.438,6.109,-612.607),
+    Vector3.new(1722.797,6.109,-484.297),
+    Vector3.new(1683.689,6.116,-386.110)
+    -- Ajouter tous les checkpoints spécifiques
+}
+
+-- Boss prioritaires
+local Bosses = {
+    "Beastmaster Joe & Abbadon",
+    "The Beast King"
+}
+
+local ActiveCheckpoints = {}
+for _, cp in ipairs(checkpoints) do table.insert(ActiveCheckpoints, cp) end
+
+-- Expose les checkpoints spécifiques
+_G.AutoFarmModule.ActiveCheckpoints = ActiveCheckpoints
+
+-- Boucle spécifique du dungeon
+game:GetService("RunService").Heartbeat:Connect(function()
+    local myPos = _G.AutoFarmModule.HRP.Position
+    local target = nil
+
+    -- Vérifie si un boss est vivant
+    for _, bossName in ipairs(Bosses) do
+        local enemies = workspace:FindFirstChild("Enemies")
+        if enemies and enemies:FindFirstChild(bossName) then
+            local mob = enemies[bossName]
+            local hum = mob:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                target = _G.AutoFarmModule.GetClosestMob()
+                break
+            end
+        end
+    end
+
+    -- Déplace vers checkpoint uniquement si aucun boss vivant
+    if not target and #ActiveCheckpoints > 0 then
+        local cp = ActiveCheckpoints[1]
+        if (cp - myPos).Magnitude <= 6 then
+            table.remove(ActiveCheckpoints, 1)
+        else
+            _G.AutoFarmModule.Humanoid:MoveTo(cp)
+        end
+    end
+end)
