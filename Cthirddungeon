@@ -84,44 +84,45 @@ return function(AutoFarmRef, AutoSpellRef)
         return false
     end
 
-    local function GetBestTarget()
-        local enemies = Workspace:FindFirstChild("Enemies")
-        if not enemies then return nil end
+local function GetBestTarget()
+    local enemies = Workspace:FindFirstChild("Enemies")
+    if not enemies then return nil end
 
-        -- priorité Grandtree Tucker si spawn et proche
-        if enemies:FindFirstChild("Grandtree Tucker") then
-            local root = GetRoot(enemies["Grandtree Tucker"])
-            if root and (root.Position - HRP.Position).Magnitude <= SPECIAL_MOB_RANGE then
-                return root
-            end
+    -- priorité Grandtree Tucker si spawn et proche
+    if enemies:FindFirstChild("Grandtree Tucker") then
+        local root = GetRoot(enemies["Grandtree Tucker"])
+        if root and (root.Position - HRP.Position).Magnitude <= SPECIAL_MOB_RANGE then
+            return root
         end
+    end
 
-        -- priorité Blightwyrm si spawn et proche
-        if enemies:FindFirstChild("Blightwyrm") then
-            local root = GetRoot(enemies["Blightwyrm"])
-            if root and (root.Position - HRP.Position).Magnitude <= SPECIAL_MOB_RANGE then
-                return root
-            end
+    -- priorité Blightwyrm si spawn et proche
+    if enemies:FindFirstChild("Blightwyrm") then
+        local root = GetRoot(enemies["Blightwyrm"])
+        if root and (root.Position - HRP.Position).Magnitude <= SPECIAL_MOB_RANGE then
+            return root
         end
+    end
 
-        -- mobs normaux
-        local closest, dist = nil, math.huge
-        for _, mob in ipairs(enemies:GetChildren()) do
-            if mob:IsA("Model") then
-                local hum = mob:FindFirstChildOfClass("Humanoid")
-                local root = GetRoot(mob)
-                if hum and root and hum.Health > 0 then
-                    local d = (root.Position - HRP.Position).Magnitude
-                    if d < dist and d <= NEARBY_MOB_RADIUS then
-                        dist = d
-                        closest = root
-                    end
+    -- mobs normaux
+    local closest, dist = nil, math.huge
+    for _, mob in ipairs(enemies:GetChildren()) do
+        if mob:IsA("Model") then
+            local hum = mob:FindFirstChildOfClass("Humanoid")
+            local root = GetRoot(mob)
+            if hum and root and hum.Health > 0 then
+                local d = (root.Position - HRP.Position).Magnitude
+                if d < dist and d <= NEARBY_MOB_RADIUS then
+                    dist = d
+                    closest = root
                 end
             end
         end
-
-        return closest
     end
+
+    return closest
+end
+
 
     local function SetupCharacter(char)
         Character = char
