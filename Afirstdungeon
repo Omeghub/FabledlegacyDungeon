@@ -1,5 +1,6 @@
 -- AutoFarmDungeon.lua
 -- Auto farm + kiting + checkpoints (FIXED & STABLE)
+-- Auteur : Optimisé pour kiting + lookAt mob
 
 return function(AutoFarmRef, AutoSpellRef)
 
@@ -15,10 +16,10 @@ return function(AutoFarmRef, AutoSpellRef)
 
     -- =========================
     -- CONFIG
-    local ATTACK_MIN_DISTANCE = 3
-    local ATTACK_MAX_DISTANCE = 25
-    local MOVE_MIN_DISTANCE = 2
-    local BACK_STEP = 2
+    local ATTACK_MIN_DISTANCE = 4
+    local ATTACK_MAX_DISTANCE = 15
+    local MOVE_MIN_DISTANCE = 4
+    local BACK_STEP = 3
 
     local MOVE_REFRESH = 0.3 -- fréquence des décisions (anti jitter)
     local CHECKPOINT_REACH = 5
@@ -76,7 +77,6 @@ return function(AutoFarmRef, AutoSpellRef)
     local function IsMobAlive(name)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return false end
-
         local mob = enemies:FindFirstChild(name)
         if mob then
             local hum = mob:FindFirstChildOfClass("Humanoid")
@@ -89,6 +89,7 @@ return function(AutoFarmRef, AutoSpellRef)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
+        -- Priorité aux boss
         if IsMobAlive("Beastmaster Joe & Abbadon") then
             return GetRoot(enemies["Beastmaster Joe & Abbadon"])
         end
@@ -96,6 +97,7 @@ return function(AutoFarmRef, AutoSpellRef)
             return GetRoot(enemies["The Beast King"])
         end
 
+        -- Sinon mob le plus proche
         local closest, dist = nil, math.huge
         for _, mob in ipairs(enemies:GetChildren()) do
             if mob:IsA("Model") then
@@ -110,7 +112,6 @@ return function(AutoFarmRef, AutoSpellRef)
                 end
             end
         end
-
         return closest
     end
 
@@ -153,14 +154,12 @@ return function(AutoFarmRef, AutoSpellRef)
         local moveTarget = nil
 
         -- =========================
-        -- CHECKPOINT VALIDATION (TOUJOURS)
+        -- CHECKPOINT VALIDATION
         if checkpoints[CurrentCheckpointIndex]
         and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
-
             local cp = checkpoints[CurrentCheckpointIndex]
             local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
             local flatCP = Vector3.new(cp.X, 0, cp.Z)
-
             if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
                 CurrentCheckpointIndex += 1
                 LastCheckpointTime = tick()
@@ -168,24 +167,27 @@ return function(AutoFarmRef, AutoSpellRef)
         end
 
         -- =========================
-        -- COMBAT
+        -- COMBAT & KITING
         if target then
             local mobPos = target.Position
             local dir = mobPos - myPos
             local distance = math.max(dir.Magnitude, 0.1)
             dir = dir.Unit
 
-            HRP.CFrame = CFrame.lookAt(
-                myPos,
-                Vector3.new(mobPos.X, myPos.Y, mobPos.Z)
-            )
-
+            -- Détermination du mouvement
             if distance > ATTACK_MIN_DISTANCE then
                 moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
             elseif distance < MOVE_MIN_DISTANCE then
                 moveTarget = myPos - dir * BACK_STEP
             end
 
+            -- Toujours regarder le mob même en recul
+            HRP.CFrame = CFrame.lookAt(
+                HRP.Position,
+                Vector3.new(mobPos.X, HRP.Position.Y, mobPos.Z)
+            )
+
+            -- Attaque et sorts
             if distance <= ATTACK_MAX_DISTANCE then
                 if tick() - LastSwingTime >= AttackDelay then
                     ReplicatedStorage.Swing:FireServer()
@@ -206,13 +208,13 @@ return function(AutoFarmRef, AutoSpellRef)
         end
 
         -- =========================
-        -- CHECKPOINT MOVE (SEULEMENT SI PAS DE MOB)
+        -- MOVE TO CHECKPOINT si pas de mob
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
         -- =========================
-        -- MOVE
+        -- EXÉCUTION DU DÉPLACEMENT
         if moveTarget then
             local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
             if (finalPos - myPos).Magnitude > 0.1 then
