@@ -25,7 +25,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local NEARBY_MOB_RADIUS = 75
 
     local AttackDelay = 1
-    local SpellDelay = 0.05
+    local SpellDelay = 0.5
 
     -- =========================
     -- CHECKPOINTS
