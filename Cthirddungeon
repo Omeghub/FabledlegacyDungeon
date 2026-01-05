@@ -1,5 +1,5 @@
 -- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints + bosses distance dynamique
+-- Auto farm + kiting + checkpoints + bosses distance dynamique (ATTACK_MAX_DISTANCE dynamique)
 
 return function(AutoFarmRef, AutoSpellRef)
 
@@ -24,7 +24,6 @@ return function(AutoFarmRef, AutoSpellRef)
     local CHECKPOINT_REACH = 10
     local NEARBY_MOB_RADIUS = 75
 
-    local BOSS_ATTACK_DISTANCE = 55 -- distance pour Blightwyrm & Grandtree Tucker
     local AttackDelay = 1
     local SpellDelay = 0.05
 
@@ -174,13 +173,13 @@ return function(AutoFarmRef, AutoSpellRef)
                 moveTarget = myPos - dir * BACK_STEP
             end
 
-            -- 🔹 Change ATTACK_MAX_DISTANCE dynamiquement pour les bosses
-            local maxAttackDist = ATTACK_MAX_DISTANCE
+            -- 🔹 Changer ATTACK_MAX_DISTANCE dynamiquement pour les boss
+            local originalAttackDistance = ATTACK_MAX_DISTANCE
             if target and (target.Name == "Blightwyrm" or target.Name == "Grandtree Tucker") then
-                maxAttackDist = BOSS_ATTACK_DISTANCE
+                ATTACK_MAX_DISTANCE = 55
             end
 
-            if distance <= maxAttackDist then
+            if distance <= ATTACK_MAX_DISTANCE then
                 if tick() - LastSwingTime >= AttackDelay then
                     ReplicatedStorage.Swing:FireServer()
                     LastSwingTime = tick()
@@ -197,6 +196,9 @@ return function(AutoFarmRef, AutoSpellRef)
                     end
                 end
             end
+
+            -- remettre ATTACK_MAX_DISTANCE à la valeur normale après le check
+            ATTACK_MAX_DISTANCE = originalAttackDistance
         end
 
         -- CHECKPOINT MOVE (SEULEMENT SI PAS DE MOB)
