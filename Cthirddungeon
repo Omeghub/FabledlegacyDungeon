@@ -1,5 +1,5 @@
 -- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints + Grandtree Tucker & Blightwyrm (FIXED & STABLE)
+-- Auto farm + kiting + checkpoints + Grandtree Tucker & Blightwyrm (STABLE)
 
 return function(AutoFarmRef, AutoSpellRef)
 
@@ -24,7 +24,8 @@ return function(AutoFarmRef, AutoSpellRef)
     local CHECKPOINT_REACH = 10
     local NEARBY_MOB_RADIUS = 75
 
-    local SPECIAL_MOB_RANGE = 250 -- distance pour attaquer Grandtree Tucker & Blightwyrm
+    local GTT_MIN, GTT_MAX = 43, 50  -- Grandtree Tucker distance
+    local BW_MIN, BW_MAX = 29, 35    -- Blightwyrm distance
     local AttackDelay = 1
     local SpellDelay = 0.05
 
@@ -47,7 +48,6 @@ return function(AutoFarmRef, AutoSpellRef)
         Vector3.new(3034.588, 115.575, 896.695),
         Vector3.new(3167.896, 115.575, 918.274)
     }
-
     local CurrentCheckpointIndex = 1
 
     -- =========================
@@ -57,7 +57,6 @@ return function(AutoFarmRef, AutoSpellRef)
     local LastSwingTime = 0
     local LastCheckpointTime = 0
     local GameCompleted = false
-
     local CHECKPOINT_COOLDOWN = 1
 
     -- =========================
@@ -65,64 +64,10 @@ return function(AutoFarmRef, AutoSpellRef)
     local function GetRoot(model)
         if model.PrimaryPart then return model.PrimaryPart end
         for _, v in ipairs(model:GetDescendants()) do
-            if v:IsA("BasePart") then
-                return v
-            end
+            if v:IsA("BasePart") then return v end
         end
         return nil
     end
-
-    local function IsMobAlive(name)
-        local enemies = Workspace:FindFirstChild("Enemies")
-        if not enemies then return false end
-
-        local mob = enemies:FindFirstChild(name)
-        if mob then
-            local hum = mob:FindFirstChildOfClass("Humanoid")
-            return hum and hum.Health > 0
-        end
-        return false
-    end
-
-local function GetBestTarget()
-    local enemies = Workspace:FindFirstChild("Enemies")
-    if not enemies then return nil end
-
-    -- priorité Grandtree Tucker si spawn et proche
-    if enemies:FindFirstChild("Grandtree Tucker") then
-        local root = GetRoot(enemies["Grandtree Tucker"])
-        if root and (root.Position - HRP.Position).Magnitude <= SPECIAL_MOB_RANGE then
-            return root
-        end
-    end
-
-    -- priorité Blightwyrm si spawn et proche
-    if enemies:FindFirstChild("Blightwyrm") then
-        local root = GetRoot(enemies["Blightwyrm"])
-        if root and (root.Position - HRP.Position).Magnitude <= SPECIAL_MOB_RANGE then
-            return root
-        end
-    end
-
-    -- mobs normaux
-    local closest, dist = nil, math.huge
-    for _, mob in ipairs(enemies:GetChildren()) do
-        if mob:IsA("Model") then
-            local hum = mob:FindFirstChildOfClass("Humanoid")
-            local root = GetRoot(mob)
-            if hum and root and hum.Health > 0 then
-                local d = (root.Position - HRP.Position).Magnitude
-                if d < dist and d <= NEARBY_MOB_RADIUS then
-                    dist = d
-                    closest = root
-                end
-            end
-        end
-    end
-
-    return closest
-end
-
 
     local function SetupCharacter(char)
         Character = char
@@ -134,11 +79,52 @@ end
     if LocalPlayer.Character then
         SetupCharacter(LocalPlayer.Character)
     end
-
     LocalPlayer.CharacterAdded:Connect(function(char)
         task.wait(1)
         SetupCharacter(char)
     end)
+
+    -- =========================
+    -- TARGET LOGIC
+    local function GetBestTarget()
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if not enemies then return nil end
+        local myPos = HRP.Position
+
+        -- Grandtree Tucker (43‑50 studs)
+        local gtt = enemies:FindFirstChild("Grandtree Tucker")
+        if gtt and gtt.PrimaryPart then
+            local dist = (gtt.PrimaryPart.Position - myPos).Magnitude
+            if dist >= GTT_MIN and dist <= GTT_MAX then
+                return gtt.PrimaryPart
+            end
+        end
+
+        -- Blightwyrm (29‑35 studs)
+        local bw = enemies:FindFirstChild("Blightwyrm")
+        if bw and bw.PrimaryPart then
+            local dist = (bw.PrimaryPart.Position - myPos).Magnitude
+            if dist >= BW_MIN and dist <= BW_MAX then
+                return bw.PrimaryPart
+            end
+        end
+
+        -- mobs normaux
+        local closest, minDist = nil, math.huge
+        for _, mob in ipairs(enemies:GetChildren()) do
+            if mob:IsA("Model") and mob.PrimaryPart then
+                local hum = mob:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    local dist = (mob.PrimaryPart.Position - myPos).Magnitude
+                    if dist < minDist and dist <= NEARBY_MOB_RADIUS then
+                        minDist = dist
+                        closest = mob.PrimaryPart
+                    end
+                end
+            end
+        end
+        return closest
+    end
 
     -- =========================
     -- MAIN LOOP
@@ -148,7 +134,9 @@ end
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
 
-        -- =========================
+        local myPos = HRP.Position
+        local moveTarget = nil
+
         -- COMPLETION CHECK
         local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
         if completionScreen and completionScreen:FindFirstChild("CompletionBorder") then
@@ -158,30 +146,22 @@ end
         end
         if GameCompleted then return end
 
-        local myPos = HRP.Position
-        local target = GetBestTarget()
-        local moveTarget = nil
-
-        -- =========================
-        -- CHECKPOINT VALIDATION (TOUJOURS)
-        if checkpoints[CurrentCheckpointIndex]
-        and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
-
+        -- CHECKPOINT VALIDATION
+        if checkpoints[CurrentCheckpointIndex] and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
             local cp = checkpoints[CurrentCheckpointIndex]
             local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
             local flatCP = Vector3.new(cp.X, 0, cp.Z)
-
             if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
                 CurrentCheckpointIndex += 1
                 LastCheckpointTime = tick()
             end
         end
 
-        -- =========================
-        -- COMBAT
+        -- TARGET
+        local target = GetBestTarget()
         if target then
             local mobPos = target.Position
-            local dir = mobPos - myPos
+            local dir = (mobPos - myPos)
             local distance = math.max(dir.Magnitude, 0.1)
             dir = dir.Unit
 
@@ -201,8 +181,8 @@ end
 
                 if AutoSpellRef.Value then
                     for _, k in ipairs({ "Q", "E", "R" }) do
-                        local s = LocalPlayer:FindFirstChild("spell" .. k)
-                        local c = LocalPlayer:FindFirstChild("cooldown" .. k)
+                        local s = LocalPlayer:FindFirstChild("spell"..k)
+                        local c = LocalPlayer:FindFirstChild("cooldown"..k)
                         if s and s.Value and c and c.Value <= 0 then
                             ReplicatedStorage.useSpell:FireServer(k)
                             task.wait(SpellDelay)
@@ -212,13 +192,11 @@ end
             end
         end
 
-        -- =========================
-        -- CHECKPOINT MOVE (SEULEMENT SI PAS DE MOB)
+        -- CHECKPOINT MOVE (si pas de cible)
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
-        -- =========================
         -- MOVE
         if moveTarget then
             local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
