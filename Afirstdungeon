@@ -1,5 +1,5 @@
 -- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints (FLUID KITING VERSION)
+-- Auto farm + kiting + checkpoints (FIXED & STABLE)
 
 return function(AutoFarmRef, AutoSpellRef)
 
@@ -18,11 +18,9 @@ return function(AutoFarmRef, AutoSpellRef)
     local ATTACK_MIN_DISTANCE = 4
     local ATTACK_MAX_DISTANCE = 15
     local MOVE_MIN_DISTANCE = 4
-    local BACK_STEP = 3 -- distance totale du recul
-    local BACK_DURATION = 0.25 -- durée du recul en secondes
-    local BACK_SPEED = BACK_STEP / BACK_DURATION -- vitesse pour BodyVelocity
+    local BACK_STEP = 3
 
-    local MOVE_REFRESH = 0.3 -- fréquence des décisions
+    local MOVE_REFRESH = 0.3 -- fréquence des décisions (anti jitter)
     local CHECKPOINT_REACH = 5
     local NEARBY_MOB_RADIUS = 75
 
@@ -78,6 +76,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local function IsMobAlive(name)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return false end
+
         local mob = enemies:FindFirstChild(name)
         if mob then
             local hum = mob:FindFirstChildOfClass("Humanoid")
@@ -90,7 +89,6 @@ return function(AutoFarmRef, AutoSpellRef)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        -- Priorité aux boss
         if IsMobAlive("Beastmaster Joe & Abbadon") then
             return GetRoot(enemies["Beastmaster Joe & Abbadon"])
         end
@@ -98,7 +96,6 @@ return function(AutoFarmRef, AutoSpellRef)
             return GetRoot(enemies["The Beast King"])
         end
 
-        -- Sinon mob le plus proche
         local closest, dist = nil, math.huge
         for _, mob in ipairs(enemies:GetChildren()) do
             if mob:IsA("Model") then
@@ -113,6 +110,7 @@ return function(AutoFarmRef, AutoSpellRef)
                 end
             end
         end
+
         return closest
     end
 
@@ -140,10 +138,6 @@ return function(AutoFarmRef, AutoSpellRef)
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
 
-        local myPos = HRP.Position
-        local target = GetBestTarget()
-        local moveTarget = nil
-
         -- =========================
         -- COMPLETION CHECK
         local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
@@ -154,13 +148,19 @@ return function(AutoFarmRef, AutoSpellRef)
         end
         if GameCompleted then return end
 
+        local myPos = HRP.Position
+        local target = GetBestTarget()
+        local moveTarget = nil
+
         -- =========================
-        -- CHECKPOINT VALIDATION
+        -- CHECKPOINT VALIDATION (TOUJOURS)
         if checkpoints[CurrentCheckpointIndex]
         and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
+
             local cp = checkpoints[CurrentCheckpointIndex]
             local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
             local flatCP = Vector3.new(cp.X, 0, cp.Z)
+
             if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
                 CurrentCheckpointIndex += 1
                 LastCheckpointTime = tick()
@@ -168,34 +168,24 @@ return function(AutoFarmRef, AutoSpellRef)
         end
 
         -- =========================
-        -- COMBAT & KITING FLUIDE
+        -- COMBAT
         if target then
             local mobPos = target.Position
-            local dir = (mobPos - myPos).Unit
-            local distance = (mobPos - myPos).Magnitude
+            local dir = mobPos - myPos
+            local distance = math.max(dir.Magnitude, 0.1)
+            dir = dir.Unit
 
-            -- Gestion du recul avec BodyVelocity
-            if distance < MOVE_MIN_DISTANCE then
-                local bodyVel = Instance.new("BodyVelocity")
-                bodyVel.Velocity = -dir * BACK_SPEED
-                bodyVel.MaxForce = Vector3.new(4000, 0, 4000)
-                bodyVel.Parent = HRP
-                task.wait(BACK_DURATION)
-                bodyVel:Destroy()
-            else
-                -- Déplacement normal vers la cible si trop loin
-                if distance > ATTACK_MIN_DISTANCE then
-                    moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
-                end
-            end
-
-            -- Toujours regarder le mob
             HRP.CFrame = CFrame.lookAt(
-                HRP.Position,
-                Vector3.new(mobPos.X, HRP.Position.Y, mobPos.Z)
+                myPos,
+                Vector3.new(mobPos.X, myPos.Y, mobPos.Z)
             )
 
-            -- Attaque et sorts
+            if distance > ATTACK_MIN_DISTANCE then
+                moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
+            elseif distance < MOVE_MIN_DISTANCE then
+                moveTarget = myPos - dir * BACK_STEP
+            end
+
             if distance <= ATTACK_MAX_DISTANCE then
                 if tick() - LastSwingTime >= AttackDelay then
                     ReplicatedStorage.Swing:FireServer()
@@ -216,13 +206,13 @@ return function(AutoFarmRef, AutoSpellRef)
         end
 
         -- =========================
-        -- MOVE TO CHECKPOINT si pas de mob
+        -- CHECKPOINT MOVE (SEULEMENT SI PAS DE MOB)
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
         -- =========================
-        -- EXECUTION DU DÉPLACEMENT NORMAL
+        -- MOVE
         if moveTarget then
             local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
             if (finalPos - myPos).Magnitude > 0.1 then
