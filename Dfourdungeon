@@ -17,15 +17,15 @@ return function(AutoFarmRef, AutoSpellRef)
     -- CONFIG
     local ATTACK_MIN_DISTANCE = 3
     local ATTACK_MAX_DISTANCE = 25
-    local MOVE_MIN_DISTANCE = 3
-    local BACK_STEP = 4
+    local MOVE_MIN_DISTANCE = 2
+    local BACK_STEP = 2
 
     local MOVE_REFRESH = 0.3 -- fréquence des décisions (anti jitter)
     local CHECKPOINT_REACH = 10
     local NEARBY_MOB_RADIUS = 75
 
     local AttackDelay = 1
-    local SpellDelay = 0.05
+    local SpellDelay = 0.5
 
     -- =========================
     -- CHECKPOINTS
