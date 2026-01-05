@@ -1,5 +1,5 @@
 -- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints + bosses distance dynamique + debug prints
+-- Auto farm + kiting + checkpoints + boss attack fixes
 
 return function(AutoFarmRef, AutoSpellRef)
 
@@ -16,8 +16,7 @@ return function(AutoFarmRef, AutoSpellRef)
     -- =========================
     -- CONFIG
     local ATTACK_MIN_DISTANCE = 3
-    local ATTACK_MAX_DISTANCE_NORMAL = 25
-    local ATTACK_MAX_DISTANCE_BOSS = 55
+    local ATTACK_MAX_DISTANCE = 25 -- normal mobs
     local MOVE_MIN_DISTANCE = 3
     local BACK_STEP = 4
 
@@ -25,6 +24,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local CHECKPOINT_REACH = 10
     local NEARBY_MOB_RADIUS = 75
 
+    local BOSS_ATTACK_DISTANCE = 55 -- dynamique pour boss
     local AttackDelay = 1
     local SpellDelay = 0.05
 
@@ -65,9 +65,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local function GetRoot(model)
         if model.PrimaryPart then return model.PrimaryPart end
         for _, v in ipairs(model:GetDescendants()) do
-            if v:IsA("BasePart") then
-                return v
-            end
+            if v:IsA("BasePart") then return v end
         end
         return nil
     end
@@ -85,26 +83,14 @@ return function(AutoFarmRef, AutoSpellRef)
 
     local function GetBestTarget()
         local enemies = Workspace:FindFirstChild("Enemies")
-        if not enemies then return nil, 0 end
+        if not enemies then return nil end
 
-        -- priorité Grandtree Tucker si spawn
-        if IsMobAlive("Grandtree Tucker") then
-            local root = GetRoot(enemies["Grandtree Tucker"])
-            if root then
-                local dist = (root.Position - HRP.Position).Magnitude
-                print(string.format("Distance Grandtree Tucker: %.2f", dist))
-                return root, dist
-            end
-        end
-
-        -- priorité Blightwyrm si spawn
+        -- priorité bosses
         if IsMobAlive("Blightwyrm") then
-            local root = GetRoot(enemies["Blightwyrm"])
-            if root then
-                local dist = (root.Position - HRP.Position).Magnitude
-                print(string.format("Distance Blightwyrm: %.2f", dist))
-                return root, dist
-            end
+            return GetRoot(enemies["Blightwyrm"])
+        end
+        if IsMobAlive("Grandtree Tucker") then
+            return GetRoot(enemies["Grandtree Tucker"])
         end
 
         -- mobs normaux
@@ -123,7 +109,7 @@ return function(AutoFarmRef, AutoSpellRef)
             end
         end
 
-        return closest, dist
+        return closest
     end
 
     local function SetupCharacter(char)
@@ -150,24 +136,21 @@ return function(AutoFarmRef, AutoSpellRef)
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
 
-        -- =========================
-        -- COMPLETION CHECK
+        -- completion check
         local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
         if completionScreen and completionScreen:FindFirstChild("CompletionBorder") then
-            if completionScreen.CompletionBorder.Visible then
-                GameCompleted = true
-            end
+            if completionScreen.CompletionBorder.Visible then GameCompleted = true end
         end
         if GameCompleted then return end
 
         local myPos = HRP.Position
-        local target, distance = GetBestTarget()
+        local target = GetBestTarget()
         local moveTarget = nil
+        local currentAttackMax = ATTACK_MAX_DISTANCE -- default
 
         -- =========================
-        -- CHECKPOINT VALIDATION
-        if checkpoints[CurrentCheckpointIndex] 
-           and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
+        -- CHECKPOINTS
+        if checkpoints[CurrentCheckpointIndex] and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
             local cp = checkpoints[CurrentCheckpointIndex]
             local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
             local flatCP = Vector3.new(cp.X, 0, cp.Z)
@@ -180,31 +163,32 @@ return function(AutoFarmRef, AutoSpellRef)
         -- =========================
         -- COMBAT
         if target then
-            -- distance dynamique pour boss
-            local currentAttackMax = ATTACK_MAX_DISTANCE_NORMAL
-            if target.Name == "Grandtree Tucker" or target.Name == "Blightwyrm" then
-                currentAttackMax = ATTACK_MAX_DISTANCE_BOSS
-                print(string.format("--> Tu peux attaquer %s ! Distance: %.2f", target.Name, distance))
-            end
-
             local mobPos = target.Position
-            local dir = mobPos - myPos
-            dir = dir.Unit
+            local dir = (mobPos - myPos).Unit
+            local distance = (mobPos - myPos).Magnitude
 
             HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
 
-            if (mobPos - myPos).Magnitude > ATTACK_MIN_DISTANCE then
+            -- vérifier si target est boss
+            local isBoss = false
+            local targetName = target.Parent.Name
+            if targetName == "Blightwyrm" or targetName == "Grandtree Tucker" then
+                isBoss = true
+                currentAttackMax = BOSS_ATTACK_DISTANCE
+            end
+
+            -- léger ajustement pour boss
+            if isBoss and distance > ATTACK_MIN_DISTANCE then
                 moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
-            elseif (mobPos - myPos).Magnitude < MOVE_MIN_DISTANCE then
+            elseif distance < MOVE_MIN_DISTANCE then
                 moveTarget = myPos - dir * BACK_STEP
             end
 
-            if (mobPos - myPos).Magnitude <= currentAttackMax then
-                print(string.format("Attaquer %s maintenant ! Distance: %.2f", target.Name, distance))
-                if tick() - LastSwingTime >= AttackDelay then
-                    ReplicatedStorage.Swing:FireServer()
-                    LastSwingTime = tick()
-                end
+            print(targetName.." distance: "..string.format("%.2f", distance))
+            if distance <= currentAttackMax then
+                print("--> Tu peux attaquer "..targetName.." !")
+                ReplicatedStorage.Swing:FireServer()
+                LastSwingTime = tick()
 
                 if AutoSpellRef.Value then
                     for _, k in ipairs({ "Q", "E", "R" }) do
