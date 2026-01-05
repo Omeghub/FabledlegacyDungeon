@@ -22,7 +22,7 @@ return function(AutoFarmRef, AutoSpellRef)
 
     local MOVE_REFRESH = 0.3
     local CHECKPOINT_REACH = 10
-    local NEARBY_MOB_RADIUS = 75
+    local NEARBY_MOB_RADIUS = 100
 
     local BOSS_ATTACK_DISTANCE = 55 -- distance pour attaquer les boss
     local AttackDelay = 1
