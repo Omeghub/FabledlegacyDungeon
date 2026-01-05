@@ -1,5 +1,5 @@
 -- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints (FIXED & STABLE)
+-- Auto farm + kiting + checkpoints + Grandtree Tucker & Blightwyrm (FIXED & STABLE)
 
 return function(AutoFarmRef, AutoSpellRef)
 
@@ -24,6 +24,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local CHECKPOINT_REACH = 10
     local NEARBY_MOB_RADIUS = 75
 
+    local SPECIAL_MOB_RANGE = 50 -- distance pour attaquer Grandtree Tucker & Blightwyrm
     local AttackDelay = 1
     local SpellDelay = 0.05
 
@@ -87,11 +88,23 @@ return function(AutoFarmRef, AutoSpellRef)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        -- priorité boss
-        if IsMobAlive("Zyrtas") then
-            return GetRoot(enemies["Zyrtas"])
+        -- priorité Grandtree Tucker si spawn et proche
+        if enemies:FindFirstChild("Grandtree Tucker") then
+            local root = GetRoot(enemies["Grandtree Tucker"])
+            if root and (root.Position - HRP.Position).Magnitude <= SPECIAL_MOB_RANGE then
+                return root
+            end
         end
 
+        -- priorité Blightwyrm si spawn et proche
+        if enemies:FindFirstChild("Blightwyrm") then
+            local root = GetRoot(enemies["Blightwyrm"])
+            if root and (root.Position - HRP.Position).Magnitude <= SPECIAL_MOB_RANGE then
+                return root
+            end
+        end
+
+        -- mobs normaux
         local closest, dist = nil, math.huge
         for _, mob in ipairs(enemies:GetChildren()) do
             if mob:IsA("Model") then
@@ -171,10 +184,7 @@ return function(AutoFarmRef, AutoSpellRef)
             local distance = math.max(dir.Magnitude, 0.1)
             dir = dir.Unit
 
-            HRP.CFrame = CFrame.lookAt(
-                myPos,
-                Vector3.new(mobPos.X, myPos.Y, mobPos.Z)
-            )
+            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
 
             if distance > ATTACK_MIN_DISTANCE then
                 moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
