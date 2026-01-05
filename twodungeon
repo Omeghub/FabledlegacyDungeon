@@ -1,3 +1,6 @@
+-- AutoFarmDungeon.lua
+-- Script autonome pour auto-farm, kiting et checkpoints
+
 return function(AutoFarmRef, AutoSpellRef)
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
@@ -168,5 +171,3 @@ local checkpoints = {
         end
     end)
 end
-
-Traduire
