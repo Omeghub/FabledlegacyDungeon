@@ -15,13 +15,13 @@ return function(AutoFarmRef, AutoSpellRef)
 
     -- =========================
     -- CONFIG
-    local ATTACK_MIN_DISTANCE = 1
+    local ATTACK_MIN_DISTANCE = 3
     local ATTACK_MAX_DISTANCE = 25
-    local MOVE_MIN_DISTANCE = 1
+    local MOVE_MIN_DISTANCE = 3
     local BACK_STEP = 4
-    local MOVE_REFRESH = 0.25
-    local CHECKPOINT_REACH = 15
-    local NEARBY_MOB_RADIUS = 60
+    local MOVE_REFRESH = 0.3
+    local CHECKPOINT_REACH = 20
+    local NEARBY_MOB_RADIUS = 75
     local AttackDelay = 1
     local SpellDelay = 0.05
 
@@ -82,11 +82,14 @@ return function(AutoFarmRef, AutoSpellRef)
         if not enemies then return nil end
 
         -- Boss priority
-        if IsMobAlive("Beastmaster Joe & Abbadon") then
-            return GetRoot(enemies["Beastmaster Joe & Abbadon"])
+        if IsMobAlive("Winged Fortresskeeper") then
+            return GetRoot(enemies["Winged Fortresskeeper"])
         end
         if IsMobAlive("The Beast King") then
             return GetRoot(enemies["The Beast King"])
+        end
+        if IsMobAlive("Zyrtas") then
+            return GetRoot(enemies["Zyrtas"])
         end
 
         -- Closest mob
