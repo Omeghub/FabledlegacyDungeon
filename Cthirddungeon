@@ -17,8 +17,8 @@ return function(AutoFarmRef, AutoSpellRef)
     -- CONFIG
     local ATTACK_MIN_DISTANCE = 3
     local ATTACK_MAX_DISTANCE = 25 -- normal mobs
-    local MOVE_MIN_DISTANCE = 3
-    local BACK_STEP = 4
+    local MOVE_MIN_DISTANCE = 2
+    local BACK_STEP = 2
 
     local MOVE_REFRESH = 0.3
     local CHECKPOINT_REACH = 10
@@ -26,7 +26,7 @@ return function(AutoFarmRef, AutoSpellRef)
 
     local BOSS_ATTACK_DISTANCE = 55 -- distance pour attaquer les boss
     local AttackDelay = 1
-    local SpellDelay = 0.05
+    local SpellDelay = 0.5
 
     -- =========================
     -- CHECKPOINTS
