@@ -81,13 +81,6 @@ return function(AutoFarmRef, AutoSpellRef)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        -- Boss priority
-        if IsMobAlive("Winged Fortresskeeper") then
-            return GetRoot(enemies["Winged Fortresskeeper"])
-        end
-        if IsMobAlive("The Beast King") then
-            return GetRoot(enemies["The Beast King"])
-        end
         if IsMobAlive("Zyrtas") then
             return GetRoot(enemies["Zyrtas"])
         end
