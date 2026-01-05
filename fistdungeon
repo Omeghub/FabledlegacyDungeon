@@ -14,7 +14,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local MOVE_MIN_DISTANCE = 1
     local BACK_STEP = 4
     local MOVE_REFRESH = 0.25
-    local CHECKPOINT_REACH = 6
+    local CHECKPOINT_REACH = 15
     local NEARBY_MOB_RADIUS = 75
     local AttackDelay = 1
     local SpellDelay = 0.05
