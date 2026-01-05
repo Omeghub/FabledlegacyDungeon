@@ -1,10 +1,8 @@
 -- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints + boss attack fixes
+-- Auto farm + kiting + checkpoints + boss attack fixes + déplacement vers boss
 
 return function(AutoFarmRef, AutoSpellRef)
 
-    -- =========================
-    -- SERVICES
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,7 +11,6 @@ return function(AutoFarmRef, AutoSpellRef)
     local LocalPlayer = Players.LocalPlayer
     local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-    -- =========================
     -- CONFIG
     local ATTACK_MIN_DISTANCE = 3
     local ATTACK_MAX_DISTANCE = 25 -- normal mobs
@@ -24,12 +21,10 @@ return function(AutoFarmRef, AutoSpellRef)
     local CHECKPOINT_REACH = 10
     local NEARBY_MOB_RADIUS = 75
 
-    local BOSS_ATTACK_DISTANCE = 55 -- dynamique pour boss
+    local BOSS_ATTACK_DISTANCE = 55
     local AttackDelay = 1
     local SpellDelay = 0.05
 
-    -- =========================
-    -- CHECKPOINTS
     local checkpoints = {
         Vector3.new(1617.571, 115.575, 375.359),
         Vector3.new(1759.396, 115.575, 361.754),
@@ -50,18 +45,12 @@ return function(AutoFarmRef, AutoSpellRef)
 
     local CurrentCheckpointIndex = 1
 
-    -- =========================
-    -- STATE
     local Character, HRP, Humanoid
-    local LastMoveTime = 0
-    local LastSwingTime = 0
-    local LastCheckpointTime = 0
+    local LastMoveTime, LastSwingTime, LastCheckpointTime = 0, 0, 0
     local GameCompleted = false
-
     local CHECKPOINT_COOLDOWN = 1
 
-    -- =========================
-    -- UTILS
+    -- UTIL
     local function GetRoot(model)
         if model.PrimaryPart then return model.PrimaryPart end
         for _, v in ipairs(model:GetDescendants()) do
@@ -85,7 +74,6 @@ return function(AutoFarmRef, AutoSpellRef)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        -- priorité bosses
         if IsMobAlive("Blightwyrm") then
             return GetRoot(enemies["Blightwyrm"])
         end
@@ -93,7 +81,6 @@ return function(AutoFarmRef, AutoSpellRef)
             return GetRoot(enemies["Grandtree Tucker"])
         end
 
-        -- mobs normaux
         local closest, dist = nil, math.huge
         for _, mob in ipairs(enemies:GetChildren()) do
             if mob:IsA("Model") then
@@ -108,7 +95,6 @@ return function(AutoFarmRef, AutoSpellRef)
                 end
             end
         end
-
         return closest
     end
 
@@ -119,22 +105,23 @@ return function(AutoFarmRef, AutoSpellRef)
         Humanoid.AutoRotate = true
     end
 
-    if LocalPlayer.Character then
-        SetupCharacter(LocalPlayer.Character)
-    end
-
+    if LocalPlayer.Character then SetupCharacter(LocalPlayer.Character) end
     LocalPlayer.CharacterAdded:Connect(function(char)
         task.wait(1)
         SetupCharacter(char)
     end)
 
-    -- =========================
     -- MAIN LOOP
     RunService.Heartbeat:Connect(function()
         if not AutoFarmRef.Value then return end
         if not HRP or not Humanoid or Humanoid.Health <= 0 then return end
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
+
+        local myPos = HRP.Position
+        local target = GetBestTarget()
+        local moveTarget = nil
+        local currentAttackMax = ATTACK_MAX_DISTANCE
 
         -- completion check
         local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
@@ -143,13 +130,7 @@ return function(AutoFarmRef, AutoSpellRef)
         end
         if GameCompleted then return end
 
-        local myPos = HRP.Position
-        local target = GetBestTarget()
-        local moveTarget = nil
-        local currentAttackMax = ATTACK_MAX_DISTANCE -- default
-
-        -- =========================
-        -- CHECKPOINTS
+        -- checkpoint
         if checkpoints[CurrentCheckpointIndex] and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
             local cp = checkpoints[CurrentCheckpointIndex]
             local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
@@ -160,8 +141,7 @@ return function(AutoFarmRef, AutoSpellRef)
             end
         end
 
-        -- =========================
-        -- COMBAT
+        -- combat
         if target then
             local mobPos = target.Position
             local dir = (mobPos - myPos).Unit
@@ -169,16 +149,14 @@ return function(AutoFarmRef, AutoSpellRef)
 
             HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
 
-            -- vérifier si target est boss
-            local isBoss = false
+            -- bosses
             local targetName = target.Parent.Name
             if targetName == "Blightwyrm" or targetName == "Grandtree Tucker" then
-                isBoss = true
                 currentAttackMax = BOSS_ATTACK_DISTANCE
             end
 
-            -- léger ajustement pour boss
-            if isBoss and distance > ATTACK_MIN_DISTANCE then
+            -- FORCE déplacement vers target si boss ou trop loin
+            if distance > currentAttackMax then
                 moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
             elseif distance < MOVE_MIN_DISTANCE then
                 moveTarget = myPos - dir * BACK_STEP
@@ -187,11 +165,13 @@ return function(AutoFarmRef, AutoSpellRef)
             print(targetName.." distance: "..string.format("%.2f", distance))
             if distance <= currentAttackMax then
                 print("--> Tu peux attaquer "..targetName.." !")
-                ReplicatedStorage.Swing:FireServer()
-                LastSwingTime = tick()
+                if tick() - LastSwingTime >= AttackDelay then
+                    ReplicatedStorage.Swing:FireServer()
+                    LastSwingTime = tick()
+                end
 
                 if AutoSpellRef.Value then
-                    for _, k in ipairs({ "Q", "E", "R" }) do
+                    for _, k in ipairs({"Q","E","R"}) do
                         local s = LocalPlayer:FindFirstChild("spell"..k)
                         local c = LocalPlayer:FindFirstChild("cooldown"..k)
                         if s and s.Value and c and c.Value <= 0 then
@@ -203,14 +183,12 @@ return function(AutoFarmRef, AutoSpellRef)
             end
         end
 
-        -- =========================
-        -- CHECKPOINT MOVE
+        -- move to checkpoint si pas de mob
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
-        -- =========================
-        -- MOVE
+        -- déplacement final
         if moveTarget then
             local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
             if (finalPos - myPos).Magnitude > 0.1 then
