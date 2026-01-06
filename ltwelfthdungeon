@@ -18,7 +18,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local BACK_STEP = 3
 
     local MOVE_REFRESH = 0.3 -- fréquence des décisions (anti jitter)
-    local CHECKPOINT_REACH = 5
+    local CHECKPOINT_REACH = 10
     local NEARBY_MOB_RADIUS = 75
 
     local AttackDelay = 1
@@ -91,11 +91,11 @@ return function(AutoFarmRef, AutoSpellRef)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        if IsMobAlive("General Neokaze") then
-            return GetRoot(enemies["General Neokaze"])
-        end
         if IsMobAlive("Mue no Ikari") then
             return GetRoot(enemies["Mue no Ikari"])
+        end
+        if IsMobAlive("Master Ryuken") then
+            return GetRoot(enemies["Master Ryuken"])
         end
 
         local closest, dist = nil, math.huge
