@@ -19,7 +19,7 @@ return function(AutoFarmRef, AutoSpellRef)
 
     local MOVE_REFRESH = 0.3 -- fréquence des décisions (anti jitter)
     local CHECKPOINT_REACH = 10
-    local NEARBY_MOB_RADIUS = 75
+    local NEARBY_MOB_RADIUS = 40
 
     local AttackDelay = 1
     local SpellDelay = 0.5
