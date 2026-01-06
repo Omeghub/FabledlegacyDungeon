@@ -22,7 +22,7 @@ return function(AutoFarmRef, AutoSpellRef)
 
     local MOVE_REFRESH = 0.3
     local CHECKPOINT_REACH = 10
-    local NEARBY_MOB_RADIUS = 40
+    local NEARBY_MOB_RADIUS = 60
 
     local BOSS_ATTACK_DISTANCE = 55 -- distance pour attaquer les boss
     local AttackDelay = 1
@@ -91,7 +91,7 @@ return function(AutoFarmRef, AutoSpellRef)
         if not enemies then return nil end
 
         -- Priorité bosses
-        for _, bossName in ipairs({"General Neokaze", "Mue no Ikari", "Master Ryuken"}) do
+        for _, bossName in ipairs({"General Neokaze", "Master Ryuken"}) do
             if IsMobAlive(bossName) then
                 local root = GetRoot(enemies[bossName])
                 if root then
