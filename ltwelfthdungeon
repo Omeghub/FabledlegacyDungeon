@@ -1,0 +1,225 @@
+return function(AutoFarmRef, AutoSpellRef)
+
+    -- =========================
+    -- SERVICES
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local Workspace = game:GetService("Workspace")
+
+    local LocalPlayer = Players.LocalPlayer
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+    -- =========================
+    -- CONFIG
+    local ATTACK_MIN_DISTANCE = 4
+    local ATTACK_MAX_DISTANCE = 15
+    local MOVE_MIN_DISTANCE = 4
+    local BACK_STEP = 3
+
+    local MOVE_REFRESH = 0.3 -- fréquence des décisions (anti jitter)
+    local CHECKPOINT_REACH = 5
+    local NEARBY_MOB_RADIUS = 75
+
+    local AttackDelay = 1
+    local SpellDelay = 0.5
+
+    -- =========================
+    -- CHECKPOINTS
+    local checkpoints = {
+        Vector3.new(707.555, 307.200, -834.693),
+        Vector3.new(593.491, 307.200, -808.081),
+        Vector3.new(506.757, 307.200, -769.234),
+        Vector3.new(555.485, 307.200, -692.477),
+        Vector3.new(643.898, 330.488, -690.230),
+        Vector3.new(698.255, 330.488, -669.824),
+        Vector3.new(685.639, 330.488, -572.144),
+        Vector3.new(686.785, 352.970, -499.499),
+        Vector3.new(681.903, 352.970, -448.788),
+        Vector3.new(586.187, 352.970, -454.809),
+        Vector3.new(552.482, 328.844, -222.933),
+        Vector3.new(524.448, 343.438, -469.506),
+        Vector3.new(395.669, 343.438, -461.071),
+        Vector3.new(262.526, 9.537, -453.241),
+        Vector3.new(121.026, 9.537, -468.247),
+        Vector3.new(103.214, -16.260, -274.389),
+        Vector3.new(38.743, -18.262, -226.433),
+        Vector3.new(-24.773, -15.730, -178.564),
+        Vector3.new(-162.493, -16.260, -107.560),
+        Vector3.new(-212.434, -16.260, -199.338),
+        Vector3.new(-307.747, -38.352, -292.565),
+        Vector3.new(-462.049, -34.124, -357.373)
+    }
+
+    local CurrentCheckpointIndex = 1
+
+    -- =========================
+    -- STATE
+    local Character, HRP, Humanoid
+    local LastMoveTime = 0
+    local LastSwingTime = 0
+    local LastCheckpointTime = 0
+    local GameCompleted = false
+
+    local CHECKPOINT_COOLDOWN = 1
+
+    -- =========================
+    -- UTILS
+    local function GetRoot(model)
+        if model.PrimaryPart then return model.PrimaryPart end
+        for _, v in ipairs(model:GetDescendants()) do
+            if v:IsA("BasePart") then
+                return v
+            end
+        end
+        return nil
+    end
+
+    local function IsMobAlive(name)
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if not enemies then return false end
+
+        local mob = enemies:FindFirstChild(name)
+        if mob then
+            local hum = mob:FindFirstChildOfClass("Humanoid")
+            return hum and hum.Health > 0
+        end
+        return false
+    end
+
+    local function GetBestTarget()
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if not enemies then return nil end
+
+        if IsMobAlive("Beastmaster Joe & Abbadon") then
+            return GetRoot(enemies["Beastmaster Joe & Abbadon"])
+        end
+        if IsMobAlive("The Beast King") then
+            return GetRoot(enemies["The Beast King"])
+        end
+
+        local closest, dist = nil, math.huge
+        for _, mob in ipairs(enemies:GetChildren()) do
+            if mob:IsA("Model") then
+                local hum = mob:FindFirstChildOfClass("Humanoid")
+                local root = GetRoot(mob)
+                if hum and root and hum.Health > 0 then
+                    local d = (root.Position - HRP.Position).Magnitude
+                    if d < dist and d <= NEARBY_MOB_RADIUS then
+                        dist = d
+                        closest = root
+                    end
+                end
+            end
+        end
+
+        return closest
+    end
+
+    local function SetupCharacter(char)
+        Character = char
+        HRP = char:WaitForChild("HumanoidRootPart")
+        Humanoid = char:WaitForChild("Humanoid")
+        Humanoid.AutoRotate = true
+    end
+
+    if LocalPlayer.Character then
+        SetupCharacter(LocalPlayer.Character)
+    end
+
+    LocalPlayer.CharacterAdded:Connect(function(char)
+        task.wait(1)
+        SetupCharacter(char)
+    end)
+
+    -- =========================
+    -- MAIN LOOP
+    RunService.Heartbeat:Connect(function()
+        if not AutoFarmRef.Value then return end
+        if not HRP or not Humanoid or Humanoid.Health <= 0 then return end
+        if tick() - LastMoveTime < MOVE_REFRESH then return end
+        LastMoveTime = tick()
+
+        -- =========================
+        -- COMPLETION CHECK
+        local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
+        if completionScreen and completionScreen:FindFirstChild("CompletionBorder") then
+            if completionScreen.CompletionBorder.Visible then
+                GameCompleted = true
+            end
+        end
+        if GameCompleted then return end
+
+        local myPos = HRP.Position
+        local target = GetBestTarget()
+        local moveTarget = nil
+
+        -- =========================
+        -- CHECKPOINT VALIDATION (TOUJOURS)
+        if checkpoints[CurrentCheckpointIndex]
+        and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
+
+            local cp = checkpoints[CurrentCheckpointIndex]
+            local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
+            local flatCP = Vector3.new(cp.X, 0, cp.Z)
+
+            if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
+                CurrentCheckpointIndex += 1
+                LastCheckpointTime = tick()
+            end
+        end
+
+        -- =========================
+        -- COMBAT
+        if target then
+            local mobPos = target.Position
+            local dir = mobPos - myPos
+            local distance = math.max(dir.Magnitude, 0.1)
+            dir = dir.Unit
+
+            HRP.CFrame = CFrame.lookAt(
+                myPos,
+                Vector3.new(mobPos.X, myPos.Y, mobPos.Z)
+            )
+
+            if distance > ATTACK_MIN_DISTANCE then
+                moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
+            elseif distance < MOVE_MIN_DISTANCE then
+                moveTarget = myPos - dir * BACK_STEP
+            end
+
+            if distance <= ATTACK_MAX_DISTANCE then
+                if tick() - LastSwingTime >= AttackDelay then
+                    ReplicatedStorage.Swing:FireServer()
+                    LastSwingTime = tick()
+                end
+
+                if AutoSpellRef.Value then
+                    for _, k in ipairs({ "Q", "E", "R" }) do
+                        local s = LocalPlayer:FindFirstChild("spell" .. k)
+                        local c = LocalPlayer:FindFirstChild("cooldown" .. k)
+                        if s and s.Value and c and c.Value <= 0 then
+                            ReplicatedStorage.useSpell:FireServer(k)
+                            task.wait(SpellDelay)
+                        end
+                    end
+                end
+            end
+        end
+
+        -- =========================
+        -- CHECKPOINT MOVE (SEULEMENT SI PAS DE MOB)
+        if not target and checkpoints[CurrentCheckpointIndex] then
+            moveTarget = checkpoints[CurrentCheckpointIndex]
+        end
+
+        -- =========================
+        -- MOVE
+        if moveTarget then
+            local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
+            if (finalPos - myPos).Magnitude > 0.1 then
+                Humanoid:MoveTo(finalPos)
+            end
+        end
+    end)
+end
