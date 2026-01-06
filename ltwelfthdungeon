@@ -91,11 +91,11 @@ return function(AutoFarmRef, AutoSpellRef)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        if IsMobAlive("Beastmaster Joe & Abbadon") then
-            return GetRoot(enemies["Beastmaster Joe & Abbadon"])
+        if IsMobAlive("General Neokaze") then
+            return GetRoot(enemies["General Neokaze"])
         end
-        if IsMobAlive("The Beast King") then
-            return GetRoot(enemies["The Beast King"])
+        if IsMobAlive("Mue no Ikari") then
+            return GetRoot(enemies["Mue no Ikari"])
         end
 
         local closest, dist = nil, math.huge
