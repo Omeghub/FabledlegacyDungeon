@@ -15,10 +15,10 @@ return function(AutoFarmRef, AutoSpellRef)
 
     -- =========================
     -- CONFIG
-    local ATTACK_MIN_DISTANCE = 4
+    local ATTACK_MIN_DISTANCE = 5
     local ATTACK_MAX_DISTANCE = 15 -- normal mobs
-    local MOVE_MIN_DISTANCE = 4
-    local BACK_STEP = 3
+    local MOVE_MIN_DISTANCE = 5
+    local BACK_STEP = 4
 
     local MOVE_REFRESH = 0.3
     local CHECKPOINT_REACH = 10
@@ -31,26 +31,28 @@ return function(AutoFarmRef, AutoSpellRef)
     -- =========================
     -- CHECKPOINTS
     local checkpoints = {
-        Vector3.new(724.481, 307.200, -852.946),
-        Vector3.new(729.019, 307.200, -788.463),
-        Vector3.new(605.808, 307.200, -808.550),
-        Vector3.new(510.218, 307.200, -788.513),
-        Vector3.new(510.583, 307.200, -722.084),
-        Vector3.new(564.286, 307.200, -695.481),
-        Vector3.new(642.144, 330.488, -694.299),
-        Vector3.new(681.018, 330.488, -658.807),
-        Vector3.new(686.448, 352.970, -525.402),
-        Vector3.new(658.073, 352.970, -448.778),
-        Vector3.new(556.687, 336.570, -377.651),
-        Vector3.new(550.952, 328.844, -238.970),
-        Vector3.new(561.938, 343.438, -467.711),
-        Vector3.new(487.345, 343.438, -464.909),
-        Vector3.new(276.559, 9.537, -448.866),
-        Vector3.new(106.707, 9.537, -386.267),
-        Vector3.new(-117.735, -16.260, -118.594),
-        Vector3.new(-215.158, -16.260, -202.008),
-        Vector3.new(-360.020, -34.082, -351.016),
-        Vector3.new(-480.326, -34.124, -343.371)
+        Vector3.new(726.167, 307.200, -853.346),
+        Vector3.new(727.622, 307.200, -792.064),
+        Vector3.new(646.618, 307.200, -807.005),
+        Vector3.new(504.019, 307.200, -769.292),
+        Vector3.new(532.027, 307.200, -702.588),
+        Vector3.new(600.813, 307.595, -691.407),
+        Vector3.new(682.128, 330.488, -690.086),
+        Vector3.new(689.790, 330.488, -649.153),
+        Vector3.new(688.934, 352.969, -534.070),
+        Vector3.new(780.667, 352.970, -438.901),
+        Vector3.new(615.350, 352.970, -413.231),
+        Vector3.new(545.577, 329.664, -365.856),
+        Vector3.new(546.808, 328.844, -210.538),
+        Vector3.new(546.754, 343.438, -464.439),
+        Vector3.new(315.102, 343.641, -462.022),
+        Vector3.new(280.164, 9.537, -455.963),
+        Vector3.new(118.079, 9.537, -458.251),
+        Vector3.new(108.035, -16.260, -271.393),
+        Vector3.new(-101.618, -15.218, -132.727),
+        Vector3.new(-156.074, -16.260, -91.179),
+        Vector3.new(-214.302, -16.260, -204.281),
+        Vector3.new(-309.763, -40.087, -302.614)
     }
     local CurrentCheckpointIndex = 1
 
@@ -91,7 +93,7 @@ return function(AutoFarmRef, AutoSpellRef)
         if not enemies then return nil end
 
         -- Priorité bosses
-        for _, bossName in ipairs({"General Neokaze", "Master Ryuken"}) do
+        for _, bossName in ipairs({"Master Ryuken"}) do
             if IsMobAlive(bossName) then
                 local root = GetRoot(enemies[bossName])
                 if root then
