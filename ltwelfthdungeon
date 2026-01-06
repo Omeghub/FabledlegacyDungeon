@@ -91,6 +91,9 @@ return function(AutoFarmRef, AutoSpellRef)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
+        if IsMobAlive("General Neokaze") then
+            return GetRoot(enemies["General Neokaze"])
+        end
         if IsMobAlive("Mue no Ikari") then
             return GetRoot(enemies["Mue no Ikari"])
         end
