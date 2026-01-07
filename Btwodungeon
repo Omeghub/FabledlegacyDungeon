@@ -147,7 +147,6 @@ return function(AutoFarmRef, AutoSpellRef)
         local enemies = Workspace:FindFirstChild("Enemies")
         if enemies and enemies:FindFirstChild("Zyrtas") then
             if not ZyrtasResetDone then
-                print("🔥 Zyrtas détecté → Reset perso")
                 ZyrtasResetDone = true
                 ResetCharacter()
                 return
