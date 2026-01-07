@@ -1,5 +1,5 @@
 -- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints + Bosses (Blightwyrm, Grandtree Tucker, Cursed Centaur)
+-- Auto farm + kiting + checkpoints + Bosses + Astral Cannon FIX
 
 return function(AutoFarmRef, AutoSpellRef)
 
@@ -16,7 +16,10 @@ return function(AutoFarmRef, AutoSpellRef)
     -- =========================
     -- CONFIG
     local ATTACK_MIN_DISTANCE = 3
-    local ATTACK_MAX_DISTANCE = 25 -- normal mobs
+    local ATTACK_MAX_DISTANCE = 25          -- mobs melee
+    local RANGED_MOB_ATTACK_DISTANCE = 45   -- Astral Cannon
+    local BOSS_ATTACK_DISTANCE = 65
+
     local MOVE_MIN_DISTANCE = 2
     local BACK_STEP = 2
 
@@ -24,43 +27,49 @@ return function(AutoFarmRef, AutoSpellRef)
     local CHECKPOINT_REACH = 5
     local NEARBY_MOB_RADIUS = 40
 
-    local BOSS_ATTACK_DISTANCE = 65 -- distance pour attaquer les boss
     local AttackDelay = 1
     local SpellDelay = 0.5
 
     -- =========================
+    -- RANGED MOBS
+    local RANGED_MOBS = {
+        ["Astral Cannon"] = true
+    }
+
+    -- =========================
     -- CHECKPOINTS
     local checkpoints = {
-        Vector3.new(-19.114, 127.483, 31.178),
-        Vector3.new(21.381, 133.403, 4.079),
-        Vector3.new(19.982, 142.341, -53.223),
-        Vector3.new(-15.257, 143.896, -168.629),
-        Vector3.new(-43.435, 153.184, -219.316),
-        Vector3.new(-95.775, 159.550, -237.034),
-        Vector3.new(-124.747, 168.653, -299.501),
-        Vector3.new(-119.054, 168.658, -355.979),
-        Vector3.new(-280.004, 197.937, -355.247),
-        Vector3.new(-431.706, 222.450, -354.782),
-        Vector3.new(-509.490, 221.549, -355.230),
-        Vector3.new(-603.482, 143.761, -354.957),
-        Vector3.new(-605.857, 143.610, -315.306),
-        Vector3.new(-664.026, 143.610, -279.539),
-        Vector3.new(-692.003, 144.330, -280.982),
-        Vector3.new(-692.075, 130.098, -329.555),
-        Vector3.new(-729.343, 118.169, -332.427),
-        Vector3.new(-782.586, 118.172, -378.671),
-        Vector3.new(-819.161, 132.330, -379.970),
-        Vector3.new(-822.827, 146.580, -428.168),
-        Vector3.new(-857.182, 145.860, -433.061),
-        Vector3.new(-919.571, 146.325, -359.971),
-        Vector3.new(-1072.774, 86.908, -353.501),
-        Vector3.new(-1177.056, 88.793, -289.863),
-        Vector3.new(-1271.666, 87.630, -359.199),
-        Vector3.new(-1375.210, 145.109, -357.468),
-        Vector3.new(-1485.774, 143.794, -356.793),
-        Vector3.new(-1497.068, 151.750, -484.083),
-        Vector3.new(-1498.598, 286.949, -771.229)
+        Vector3.new(-19.114,127.483,31.178),
+        Vector3.new(21.381,133.403,4.079),
+        Vector3.new(19.982,142.341,-53.223),
+        Vector3.new(-15.257,143.896,-168.629),
+        Vector3.new(-43.435,153.184,-219.316),
+        Vector3.new(-95.775,159.550,-237.034),
+        Vector3.new(-124.747,168.653,-299.501),
+        Vector3.new(-119.054,168.658,-355.979),
+        Vector3.new(-280.004,197.937,-355.247),
+        Vector3.new(-431.706,222.450,-354.782),
+        Vector3.new(-509.490,221.549,-355.230),
+        Vector3.new(-603.482,143.761,-354.957),
+        Vector3.new(-605.857,143.610,-315.306),
+        Vector3.new(-664.026,143.610,-279.539),
+        Vector3.new(-692.003,144.330,-280.982),
+        Vector3.new(-692.075,130.098,-329.555),
+        Vector3.new(-729.343,118.169,-332.427),
+        Vector3.new(-782.586,118.172,-378.671),
+        Vector3.new(-819.161,132.330,-379.970),
+        Vector3.new(-822.827,146.580,-428.168),
+        Vector3.new(-857.182,145.860,-433.061),
+        Vector3.new(-919.571,146.325,-359.971),
+        Vector3.new(-1072.774,86.908,-353.501),
+        Vector3.new(-1177.056,88.793,-289.863),
+        Vector3.new(-1271.666,87.630,-359.199),
+        Vector3.new(-1375.210,145.109,-357.468),
+        Vector3.new(-1485.774,143.794,-356.793),
+        Vector3.new(-1497.068,151.750,-484.083),
+        Vector3.new(-1498.598,286.949,-771.229)
     }
+
     local CurrentCheckpointIndex = 1
 
     -- =========================
@@ -95,40 +104,51 @@ return function(AutoFarmRef, AutoSpellRef)
         return false
     end
 
+    -- =========================
+    -- TARGET SELECTION
     local function GetBestTarget()
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        -- Priorité bosses
-        for _, bossName in ipairs({"Heldeir", "Kaegyr"}) do
+        -- Boss priority
+        for _, bossName in ipairs({"Heldeir","Kaegyr"}) do
             if IsMobAlive(bossName) then
                 local root = GetRoot(enemies[bossName])
                 if root then
-                    print("--> Distance " .. bossName .. ": " .. math.floor((root.Position - HRP.Position).Magnitude*100)/100)
-                    return root, true -- le second return indique que c'est un boss
+                    return root, true, false
                 end
             end
         end
 
-        -- Mobs normaux
-        local closest, dist = nil, math.huge
+        -- Normal mobs + ranged mobs
+        local closest, dist, isRanged = nil, math.huge, false
+
         for _, mob in ipairs(enemies:GetChildren()) do
             if mob:IsA("Model") then
                 local hum = mob:FindFirstChildOfClass("Humanoid")
                 local root = GetRoot(mob)
                 if hum and root and hum.Health > 0 then
                     local d = (root.Position - HRP.Position).Magnitude
-                    if d < dist and d <= NEARBY_MOB_RADIUS then
+                    local maxDetect = NEARBY_MOB_RADIUS
+
+                    if RANGED_MOBS[mob.Name] then
+                        maxDetect = RANGED_MOB_ATTACK_DISTANCE
+                    end
+
+                    if d < dist and d <= maxDetect then
                         dist = d
                         closest = root
+                        isRanged = RANGED_MOBS[mob.Name] or false
                     end
                 end
             end
         end
 
-        return closest, false
+        return closest, false, isRanged
     end
 
+    -- =========================
+    -- CHARACTER SETUP
     local function SetupCharacter(char)
         Character = char
         HRP = char:WaitForChild("HumanoidRootPart")
@@ -163,7 +183,7 @@ return function(AutoFarmRef, AutoSpellRef)
         if GameCompleted then return end
 
         local myPos = HRP.Position
-        local target, isBoss = GetBestTarget()
+        local target, isBoss, isRanged = GetBestTarget()
         local moveTarget = nil
 
         -- Checkpoint validation
@@ -193,10 +213,11 @@ return function(AutoFarmRef, AutoSpellRef)
                 moveTarget = myPos - dir * BACK_STEP
             end
 
-            -- Ajuste dynamique de ATTACK_MAX_DISTANCE pour les boss
             local attackDistance = ATTACK_MAX_DISTANCE
             if isBoss then
                 attackDistance = BOSS_ATTACK_DISTANCE
+            elseif isRanged then
+                attackDistance = RANGED_MOB_ATTACK_DISTANCE
             end
 
             if distance <= attackDistance then
@@ -218,11 +239,12 @@ return function(AutoFarmRef, AutoSpellRef)
             end
         end
 
-        -- Move vers checkpoint si pas de target
+        -- Checkpoint move
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
+        -- Move
         if moveTarget then
             local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
             if (finalPos - myPos).Magnitude > 0.1 then
