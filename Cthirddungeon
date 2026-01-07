@@ -83,7 +83,7 @@ return function(AutoFarmRef, AutoSpellRef)
         if not enemies then return nil end
 
         -- PRIORITÉ BOSS + Cursed Caster même loin
-        local PRIORITY_MOBS = {"Blightwyrm", "Grandtree Tucker", "Cursed Centaur", "Cursed Caster"}
+        local PRIORITY_MOBS = {"Blightwyrm", "Grandtree Tucker", "Cursed Centaur"}
         for _, name in ipairs(PRIORITY_MOBS) do
             if IsMobAlive(name) then
                 local root = GetRoot(enemies[name])
