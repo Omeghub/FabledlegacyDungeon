@@ -21,45 +21,32 @@ return function(AutoFarmRef, AutoSpellRef)
     local BACK_STEP = 2
 
     local MOVE_REFRESH = 0.3
-    local CHECKPOINT_REACH = 5
-    local NEARBY_MOB_RADIUS = 40
+    local CHECKPOINT_REACH = 10
+    local NEARBY_MOB_RADIUS = 100
 
-    local BOSS_ATTACK_DISTANCE = 65 -- distance pour attaquer les boss
+    local BOSS_ATTACK_DISTANCE = 55 -- distance pour attaquer les boss
     local AttackDelay = 1
     local SpellDelay = 0.5
 
     -- =========================
     -- CHECKPOINTS
     local checkpoints = {
-        Vector3.new(-19.114, 127.483, 31.178),
-        Vector3.new(21.381, 133.403, 4.079),
-        Vector3.new(19.982, 142.341, -53.223),
-        Vector3.new(-15.257, 143.896, -168.629),
-        Vector3.new(-43.435, 153.184, -219.316),
-        Vector3.new(-95.775, 159.550, -237.034),
-        Vector3.new(-124.747, 168.653, -299.501),
-        Vector3.new(-119.054, 168.658, -355.979),
-        Vector3.new(-280.004, 197.937, -355.247),
-        Vector3.new(-431.706, 222.450, -354.782),
-        Vector3.new(-509.490, 221.549, -355.230),
-        Vector3.new(-603.482, 143.761, -354.957),
-        Vector3.new(-605.857, 143.610, -315.306),
-        Vector3.new(-664.026, 143.610, -279.539),
-        Vector3.new(-692.003, 144.330, -280.982),
-        Vector3.new(-692.075, 130.098, -329.555),
-        Vector3.new(-729.343, 118.169, -332.427),
-        Vector3.new(-782.586, 118.172, -378.671),
-        Vector3.new(-819.161, 132.330, -379.970),
-        Vector3.new(-822.827, 146.580, -428.168),
-        Vector3.new(-857.182, 145.860, -433.061),
-        Vector3.new(-919.571, 146.325, -359.971),
-        Vector3.new(-1072.774, 86.908, -353.501),
-        Vector3.new(-1177.056, 88.793, -289.863),
-        Vector3.new(-1271.666, 87.630, -359.199),
-        Vector3.new(-1375.210, 145.109, -357.468),
-        Vector3.new(-1485.774, 143.794, -356.793),
-        Vector3.new(-1497.068, 151.750, -484.083),
-        Vector3.new(-1498.598, 286.949, -771.229)
+        Vector3.new(1617.571, 115.575, 375.359),
+        Vector3.new(1759.396, 115.575, 361.754),
+        Vector3.new(1894.248, 115.575, 355.935),
+        Vector3.new(2037.388, 115.575, 306.617),
+        Vector3.new(2100.523, 115.575, 279.585),
+        Vector3.new(2239.763, 115.575, 285.039),
+        Vector3.new(2492.599, 115.575, 323.648),
+        Vector3.new(2646.195, 128.202, 321.074),
+        Vector3.new(2721.464, 127.994, 417.879),
+        Vector3.new(2792.959, 128.212, 453.293),
+        Vector3.new(2834.895, 128.562, 451.450),
+        Vector3.new(2838.777, 128.562, 493.566),
+        Vector3.new(2889.048, 115.575, 759.617),
+        Vector3.new(3034.588, 115.575, 896.695),
+        Vector3.new(3167.896, 115.575, 918.274),
+        Vector3.new(3333.574, 115.575, 955.456)
     }
     local CurrentCheckpointIndex = 1
 
@@ -100,7 +87,7 @@ return function(AutoFarmRef, AutoSpellRef)
         if not enemies then return nil end
 
         -- Priorité bosses
-        for _, bossName in ipairs({"Astral Cannon", "Heldeir", "Kaegyr"}) do
+        for _, bossName in ipairs({"Blightwyrm", "Grandtree Tucker", "Cursed Centaur"}) do
             if IsMobAlive(bossName) then
                 local root = GetRoot(enemies[bossName])
                 if root then
