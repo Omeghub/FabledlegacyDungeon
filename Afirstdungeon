@@ -25,7 +25,6 @@ return function(AutoFarmRef, AutoSpellRef)
     local SpellDelay = 0.5
 
     -- === AUTO DODGE CONFIG ===
-    local AUTO_DODGE = true
     local DODGE_RADIUS = 10
     local DODGE_FORCE = 6
     local DODGE_COOLDOWN = 0.4
@@ -80,7 +79,6 @@ return function(AutoFarmRef, AutoSpellRef)
     local function IsMobAlive(name)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return false end
-
         local mob = enemies:FindFirstChild(name)
         if mob then
             local hum = mob:FindFirstChildOfClass("Humanoid")
@@ -88,28 +86,6 @@ return function(AutoFarmRef, AutoSpellRef)
         end
         return false
     end
-
--- =========================
--- AUTO DODGE (NON PRIORITAIRE & FLUIDE)
-local dodgeOffset = Vector3.zero
-
-if tick() - LastDodgeTime > DODGE_COOLDOWN then
-    for _, obj in ipairs(Workspace:GetChildren()) do
-        if obj:IsA("BasePart")
-        and obj.Anchored
-        and not obj.CanCollide then
-
-            local dist = (obj.Position - myPos).Magnitude
-            if dist <= DODGE_RADIUS then
-                local away = (myPos - obj.Position).Unit
-                dodgeOffset = away * DODGE_FORCE
-                LastDodgeTime = tick()
-                break
-            end
-        end
-    end
-end
-
 
     local function GetBestTarget()
         local enemies = Workspace:FindFirstChild("Enemies")
@@ -136,7 +112,6 @@ end
                 end
             end
         end
-
         return closest
     end
 
@@ -164,52 +139,98 @@ end
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
 
+        -- Completion check
+        local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
+        if completionScreen and completionScreen:FindFirstChild("CompletionBorder")
+        and completionScreen.CompletionBorder.Visible then
+            GameCompleted = true
+        end
+        if GameCompleted then return end
+
         local myPos = HRP.Position
+        local target = GetBestTarget()
+        local moveTarget = nil
+        local dodgeOffset = Vector3.zero
 
         -- =========================
-        -- AUTO DODGE (PRIORITÉ MAX)
-        if AUTO_DODGE and tick() - LastDodgeTime > DODGE_COOLDOWN then
-            local danger = GetDangerPart()
-            if danger then
-                local dir = (myPos - danger.Position).Unit
-                local dodgePos = myPos + dir * DODGE_STEP
-                print("⚠️ Dodge !")
-                Humanoid:MoveTo(Vector3.new(dodgePos.X, myPos.Y, dodgePos.Z))
-                LastDodgeTime = tick()
-                return
+        -- AUTO DODGE (léger, non prioritaire)
+        if tick() - LastDodgeTime > DODGE_COOLDOWN then
+            for _, obj in ipairs(Workspace:GetChildren()) do
+                if obj:IsA("BasePart")
+                and obj.Anchored
+                and not obj.CanCollide then
+                    local dist = (obj.Position - myPos).Magnitude
+                    if dist <= DODGE_RADIUS then
+                        dodgeOffset = (myPos - obj.Position).Unit * DODGE_FORCE
+                        LastDodgeTime = tick()
+                        break
+                    end
+                end
             end
         end
 
         -- =========================
-        -- COMBAT / CHECKPOINTS (inchangé)
-        local target = GetBestTarget()
-        local moveTarget = nil
+        -- CHECKPOINT VALIDATION
+        if checkpoints[CurrentCheckpointIndex]
+        and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
+            local cp = checkpoints[CurrentCheckpointIndex]
+            local flatMy = Vector3.new(myPos.X,0,myPos.Z)
+            local flatCP = Vector3.new(cp.X,0,cp.Z)
+            if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
+                CurrentCheckpointIndex += 1
+                LastCheckpointTime = tick()
+            end
+        end
 
+        -- =========================
+        -- COMBAT
         if target then
             local mobPos = target.Position
-            local dir = (mobPos - myPos).Unit
-            local dist = (mobPos - myPos).Magnitude
+            local dir = mobPos - myPos
+            local distance = math.max(dir.Magnitude, 0.1)
+            dir = dir.Unit
 
             HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
 
-            if dist > ATTACK_MIN_DISTANCE then
+            if distance > ATTACK_MIN_DISTANCE then
                 moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
-            elseif dist < MOVE_MIN_DISTANCE then
+            elseif distance < MOVE_MIN_DISTANCE then
                 moveTarget = myPos - dir * BACK_STEP
             end
 
-            if dist <= ATTACK_MAX_DISTANCE and tick() - LastSwingTime >= AttackDelay then
-                ReplicatedStorage.Swing:FireServer()
-                LastSwingTime = tick()
+            if distance <= ATTACK_MAX_DISTANCE then
+                if tick() - LastSwingTime >= AttackDelay then
+                    ReplicatedStorage.Swing:FireServer()
+                    LastSwingTime = tick()
+                end
+
+                if AutoSpellRef.Value then
+                    for _, k in ipairs({"Q","E","R"}) do
+                        local s = LocalPlayer:FindFirstChild("spell"..k)
+                        local c = LocalPlayer:FindFirstChild("cooldown"..k)
+                        if s and s.Value and c and c.Value <= 0 then
+                            ReplicatedStorage.useSpell:FireServer(k)
+                            task.wait(SpellDelay)
+                        end
+                    end
+                end
             end
         end
 
+        -- =========================
+        -- CHECKPOINT MOVE
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
+        -- =========================
+        -- FINAL MOVE (combat + dodge)
         if moveTarget then
-            Humanoid:MoveTo(Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z))
+            local finalPos = moveTarget + dodgeOffset
+            finalPos = Vector3.new(finalPos.X, myPos.Y, finalPos.Z)
+            if (finalPos - myPos).Magnitude > 0.1 then
+                Humanoid:MoveTo(finalPos)
+            end
         end
     end)
 end
