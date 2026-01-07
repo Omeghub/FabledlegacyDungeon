@@ -43,6 +43,8 @@ return function(AutoFarmRef, AutoSpellRef)
         Vector3.new(-19.114,127.483,31.178),
         Vector3.new(21.381,133.403,4.079),
         Vector3.new(19.982,142.341,-53.223),
+        Vector3.new(46.985, 143.985, -112.302),
+        Vector3.new(-48.970, 143.985, -102.740),
         Vector3.new(-15.257,143.896,-168.629),
         Vector3.new(-43.435,153.184,-219.316),
         Vector3.new(-95.775,159.550,-237.034),
