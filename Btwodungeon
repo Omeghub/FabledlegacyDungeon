@@ -1,5 +1,5 @@
 -- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints (FIXED & STABLE)
+-- Auto farm + kiting + checkpoints + reset Zyrtas (STABLE)
 
 return function(AutoFarmRef, AutoSpellRef)
 
@@ -18,14 +18,14 @@ return function(AutoFarmRef, AutoSpellRef)
     local ATTACK_MIN_DISTANCE = 3
     local ATTACK_MAX_DISTANCE = 25
     local MOVE_MIN_DISTANCE = 2
-    local BACK_STEP = 2
+    local BACK_STEP = 3
 
-    local MOVE_REFRESH = 0.3 -- fréquence des décisions (anti jitter)
+    local MOVE_REFRESH = 0.3
     local CHECKPOINT_REACH = 10
     local NEARBY_MOB_RADIUS = 85
 
     local AttackDelay = 1
-    local SpellDelay = 0.5
+    local SpellDelay = 0.4
 
     -- =========================
     -- CHECKPOINTS
@@ -59,6 +59,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local GameCompleted = false
 
     local CHECKPOINT_COOLDOWN = 1
+    local ZyrtasResetDone = false
 
     -- =========================
     -- UTILS
@@ -84,11 +85,17 @@ return function(AutoFarmRef, AutoSpellRef)
         return false
     end
 
+    local function ResetCharacter()
+        if Humanoid and Humanoid.Health > 0 then
+            Humanoid.Health = 0
+        end
+    end
+
     local function GetBestTarget()
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        -- priorité boss
+        -- PRIORITÉ ZYRTAS
         if IsMobAlive("Zyrtas") then
             return GetRoot(enemies["Zyrtas"])
         end
@@ -136,6 +143,22 @@ return function(AutoFarmRef, AutoSpellRef)
         LastMoveTime = tick()
 
         -- =========================
+        -- ZYRTAS RESET AU SPAWN
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if enemies and enemies:FindFirstChild("Zyrtas") then
+            if not ZyrtasResetDone then
+                print("🔥 Zyrtas détecté → Reset perso")
+                ZyrtasResetDone = true
+                ResetCharacter()
+                return
+            end
+        end
+
+        if ZyrtasResetDone and not IsMobAlive("Zyrtas") then
+            ZyrtasResetDone = false
+        end
+
+        -- =========================
         -- COMPLETION CHECK
         local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
         if completionScreen and completionScreen:FindFirstChild("CompletionBorder") then
@@ -150,39 +173,36 @@ return function(AutoFarmRef, AutoSpellRef)
         local moveTarget = nil
 
         -- =========================
-        -- CHECKPOINT VALIDATION (TOUJOURS)
+        -- CHECKPOINT VALIDATION
         if checkpoints[CurrentCheckpointIndex]
         and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
-
             local cp = checkpoints[CurrentCheckpointIndex]
-            local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
-            local flatCP = Vector3.new(cp.X, 0, cp.Z)
-
-            if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
+            if (Vector3.new(cp.X,0,cp.Z) - Vector3.new(myPos.X,0,myPos.Z)).Magnitude <= CHECKPOINT_REACH then
                 CurrentCheckpointIndex += 1
                 LastCheckpointTime = tick()
             end
         end
 
         -- =========================
-        -- COMBAT
+        -- COMBAT & KITING
         if target then
             local mobPos = target.Position
             local dir = mobPos - myPos
             local distance = math.max(dir.Magnitude, 0.1)
             dir = dir.Unit
 
-            HRP.CFrame = CFrame.lookAt(
-                myPos,
-                Vector3.new(mobPos.X, myPos.Y, mobPos.Z)
-            )
+            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
 
-            if distance > ATTACK_MIN_DISTANCE then
-                moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
+            -- APPROCHE OU RECUL
+            if distance > ATTACK_MAX_DISTANCE then
+                moveTarget = mobPos - dir * (ATTACK_MAX_DISTANCE - 2)
             elseif distance < MOVE_MIN_DISTANCE then
                 moveTarget = myPos - dir * BACK_STEP
+            elseif distance > ATTACK_MIN_DISTANCE then
+                moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
             end
 
+            -- ATTAQUE
             if distance <= ATTACK_MAX_DISTANCE then
                 if tick() - LastSwingTime >= AttackDelay then
                     ReplicatedStorage.Swing:FireServer()
@@ -203,7 +223,7 @@ return function(AutoFarmRef, AutoSpellRef)
         end
 
         -- =========================
-        -- CHECKPOINT MOVE (SEULEMENT SI PAS DE MOB)
+        -- CHECKPOINT MOVE
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
