@@ -1,5 +1,5 @@
 -- AutoFarmDungeon.lua
--- Auto farm + kiting + checkpoints (FIXED & STABLE)
+-- Auto farm + kiting + checkpoints + Bosses (Blightwyrm, Grandtree Tucker, Cursed Centaur)
 
 return function(AutoFarmRef, AutoSpellRef)
 
@@ -16,52 +16,51 @@ return function(AutoFarmRef, AutoSpellRef)
     -- =========================
     -- CONFIG
     local ATTACK_MIN_DISTANCE = 3
-    local ATTACK_MAX_DISTANCE = 25
+    local ATTACK_MAX_DISTANCE = 25 -- normal mobs
     local MOVE_MIN_DISTANCE = 2
     local BACK_STEP = 2
 
-    local MOVE_REFRESH = 0.3 -- fréquence des décisions (anti jitter)
-    local CHECKPOINT_REACH = 10
-    local NEARBY_MOB_RADIUS = 75
+    local MOVE_REFRESH = 0.3
+    local CHECKPOINT_REACH = 5
+    local NEARBY_MOB_RADIUS = 40
 
+    local BOSS_ATTACK_DISTANCE = 65 -- distance pour attaquer les boss
     local AttackDelay = 1
     local SpellDelay = 0.5
 
     -- =========================
     -- CHECKPOINTS
     local checkpoints = {
-Vector3.new(-19.114, 127.483, 31.178),
-Vector3.new(21.381, 133.403, 4.079),
-Vector3.new(19.982, 142.341, -53.223),
-Vector3.new(-15.257, 143.896, -168.629),
-Vector3.new(-43.435, 153.184, -219.316),
-Vector3.new(-95.775, 159.550, -237.034),
-Vector3.new(-124.747, 168.653, -299.501),
-Vector3.new(-119.054, 168.658, -355.979),
-Vector3.new(-280.004, 197.937, -355.247),
-Vector3.new(-431.706, 222.450, -354.782),
-Vector3.new(-509.490, 221.549, -355.230),
-Vector3.new(-603.482, 143.761, -354.957),
-Vector3.new(-605.857, 143.610, -315.306),
-Vector3.new(-664.026, 143.610, -279.539),
-Vector3.new(-692.003, 144.330, -280.982),
-Vector3.new(-692.075, 130.098, -329.555),
-Vector3.new(-729.343, 118.169, -332.427),
-Vector3.new(-782.586, 118.172, -378.671),
-Vector3.new(-819.161, 132.330, -379.970),
-Vector3.new(-822.827, 146.580, -428.168),
-Vector3.new(-857.182, 145.860, -433.061),
-Vector3.new(-919.571, 146.325, -359.971),
-Vector3.new(-1072.774, 86.908, -353.501),
-Vector3.new(-1177.056, 88.793, -289.863),
-Vector3.new(-1271.666, 87.630, -359.199),
-Vector3.new(-1375.210, 145.109, -357.468),
-Vector3.new(-1485.774, 143.794, -356.793),
-Vector3.new(-1497.068, 151.750, -484.083),
-Vector3.new(-1498.598, 286.949, -771.229)
-
+        Vector3.new(-19.114, 127.483, 31.178),
+        Vector3.new(21.381, 133.403, 4.079),
+        Vector3.new(19.982, 142.341, -53.223),
+        Vector3.new(-15.257, 143.896, -168.629),
+        Vector3.new(-43.435, 153.184, -219.316),
+        Vector3.new(-95.775, 159.550, -237.034),
+        Vector3.new(-124.747, 168.653, -299.501),
+        Vector3.new(-119.054, 168.658, -355.979),
+        Vector3.new(-280.004, 197.937, -355.247),
+        Vector3.new(-431.706, 222.450, -354.782),
+        Vector3.new(-509.490, 221.549, -355.230),
+        Vector3.new(-603.482, 143.761, -354.957),
+        Vector3.new(-605.857, 143.610, -315.306),
+        Vector3.new(-664.026, 143.610, -279.539),
+        Vector3.new(-692.003, 144.330, -280.982),
+        Vector3.new(-692.075, 130.098, -329.555),
+        Vector3.new(-729.343, 118.169, -332.427),
+        Vector3.new(-782.586, 118.172, -378.671),
+        Vector3.new(-819.161, 132.330, -379.970),
+        Vector3.new(-822.827, 146.580, -428.168),
+        Vector3.new(-857.182, 145.860, -433.061),
+        Vector3.new(-919.571, 146.325, -359.971),
+        Vector3.new(-1072.774, 86.908, -353.501),
+        Vector3.new(-1177.056, 88.793, -289.863),
+        Vector3.new(-1271.666, 87.630, -359.199),
+        Vector3.new(-1375.210, 145.109, -357.468),
+        Vector3.new(-1485.774, 143.794, -356.793),
+        Vector3.new(-1497.068, 151.750, -484.083),
+        Vector3.new(-1498.598, 286.949, -771.229)
     }
-
     local CurrentCheckpointIndex = 1
 
     -- =========================
@@ -71,7 +70,6 @@ Vector3.new(-1498.598, 286.949, -771.229)
     local LastSwingTime = 0
     local LastCheckpointTime = 0
     local GameCompleted = false
-
     local CHECKPOINT_COOLDOWN = 1
 
     -- =========================
@@ -89,7 +87,6 @@ Vector3.new(-1498.598, 286.949, -771.229)
     local function IsMobAlive(name)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return false end
-
         local mob = enemies:FindFirstChild(name)
         if mob then
             local hum = mob:FindFirstChildOfClass("Humanoid")
@@ -102,11 +99,18 @@ Vector3.new(-1498.598, 286.949, -771.229)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        -- priorité boss
-        if IsMobAlive("Zyrtas") then
-            return GetRoot(enemies["Zyrtas"])
+        -- Priorité bosses
+        for _, bossName in ipairs({"Astral Cannon", "Heldeir", "Kaegyr"}) do
+            if IsMobAlive(bossName) then
+                local root = GetRoot(enemies[bossName])
+                if root then
+                    print("--> Distance " .. bossName .. ": " .. math.floor((root.Position - HRP.Position).Magnitude*100)/100)
+                    return root, true -- le second return indique que c'est un boss
+                end
+            end
         end
 
+        -- Mobs normaux
         local closest, dist = nil, math.huge
         for _, mob in ipairs(enemies:GetChildren()) do
             if mob:IsA("Model") then
@@ -122,7 +126,7 @@ Vector3.new(-1498.598, 286.949, -771.229)
             end
         end
 
-        return closest
+        return closest, false
     end
 
     local function SetupCharacter(char)
@@ -149,8 +153,7 @@ Vector3.new(-1498.598, 286.949, -771.229)
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
 
-        -- =========================
-        -- COMPLETION CHECK
+        -- Completion check
         local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
         if completionScreen and completionScreen:FindFirstChild("CompletionBorder") then
             if completionScreen.CompletionBorder.Visible then
@@ -160,36 +163,29 @@ Vector3.new(-1498.598, 286.949, -771.229)
         if GameCompleted then return end
 
         local myPos = HRP.Position
-        local target = GetBestTarget()
+        local target, isBoss = GetBestTarget()
         local moveTarget = nil
 
-        -- =========================
-        -- CHECKPOINT VALIDATION (TOUJOURS)
+        -- Checkpoint validation
         if checkpoints[CurrentCheckpointIndex]
         and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
-
             local cp = checkpoints[CurrentCheckpointIndex]
-            local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
-            local flatCP = Vector3.new(cp.X, 0, cp.Z)
-
+            local flatMy = Vector3.new(myPos.X,0,myPos.Z)
+            local flatCP = Vector3.new(cp.X,0,cp.Z)
             if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
                 CurrentCheckpointIndex += 1
                 LastCheckpointTime = tick()
             end
         end
 
-        -- =========================
-        -- COMBAT
+        -- Combat
         if target then
             local mobPos = target.Position
             local dir = mobPos - myPos
             local distance = math.max(dir.Magnitude, 0.1)
             dir = dir.Unit
 
-            HRP.CFrame = CFrame.lookAt(
-                myPos,
-                Vector3.new(mobPos.X, myPos.Y, mobPos.Z)
-            )
+            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
 
             if distance > ATTACK_MIN_DISTANCE then
                 moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
@@ -197,16 +193,22 @@ Vector3.new(-1498.598, 286.949, -771.229)
                 moveTarget = myPos - dir * BACK_STEP
             end
 
-            if distance <= ATTACK_MAX_DISTANCE then
+            -- Ajuste dynamique de ATTACK_MAX_DISTANCE pour les boss
+            local attackDistance = ATTACK_MAX_DISTANCE
+            if isBoss then
+                attackDistance = BOSS_ATTACK_DISTANCE
+            end
+
+            if distance <= attackDistance then
                 if tick() - LastSwingTime >= AttackDelay then
                     ReplicatedStorage.Swing:FireServer()
                     LastSwingTime = tick()
                 end
 
                 if AutoSpellRef.Value then
-                    for _, k in ipairs({ "Q", "E", "R" }) do
-                        local s = LocalPlayer:FindFirstChild("spell" .. k)
-                        local c = LocalPlayer:FindFirstChild("cooldown" .. k)
+                    for _, k in ipairs({"Q","E","R"}) do
+                        local s = LocalPlayer:FindFirstChild("spell"..k)
+                        local c = LocalPlayer:FindFirstChild("cooldown"..k)
                         if s and s.Value and c and c.Value <= 0 then
                             ReplicatedStorage.useSpell:FireServer(k)
                             task.wait(SpellDelay)
@@ -216,14 +218,11 @@ Vector3.new(-1498.598, 286.949, -771.229)
             end
         end
 
-        -- =========================
-        -- CHECKPOINT MOVE (SEULEMENT SI PAS DE MOB)
+        -- Move vers checkpoint si pas de target
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
-        -- =========================
-        -- MOVE
         if moveTarget then
             local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
             if (finalPos - myPos).Magnitude > 0.1 then
