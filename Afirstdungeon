@@ -17,17 +17,12 @@ return function(AutoFarmRef, AutoSpellRef)
     local MOVE_MIN_DISTANCE = 4
     local BACK_STEP = 3
 
-    local MOVE_REFRESH = 0.3
+    local MOVE_REFRESH = 0.3 -- fréquence des décisions (anti jitter)
     local CHECKPOINT_REACH = 5
     local NEARBY_MOB_RADIUS = 75
 
     local AttackDelay = 1
     local SpellDelay = 0.5
-
-    -- === AUTO DODGE CONFIG ===
-    local DODGE_RADIUS = 10
-    local DODGE_FORCE = 6
-    local DODGE_COOLDOWN = 0.4
 
     -- =========================
     -- CHECKPOINTS
@@ -59,7 +54,6 @@ return function(AutoFarmRef, AutoSpellRef)
     local LastMoveTime = 0
     local LastSwingTime = 0
     local LastCheckpointTime = 0
-    local LastDodgeTime = 0
     local GameCompleted = false
 
     local CHECKPOINT_COOLDOWN = 1
@@ -79,6 +73,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local function IsMobAlive(name)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return false end
+
         local mob = enemies:FindFirstChild(name)
         if mob then
             local hum = mob:FindFirstChildOfClass("Humanoid")
@@ -112,6 +107,7 @@ return function(AutoFarmRef, AutoSpellRef)
                 end
             end
         end
+
         return closest
     end
 
@@ -139,43 +135,29 @@ return function(AutoFarmRef, AutoSpellRef)
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
 
-        -- Completion check
+        -- =========================
+        -- COMPLETION CHECK
         local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
-        if completionScreen and completionScreen:FindFirstChild("CompletionBorder")
-        and completionScreen.CompletionBorder.Visible then
-            GameCompleted = true
+        if completionScreen and completionScreen:FindFirstChild("CompletionBorder") then
+            if completionScreen.CompletionBorder.Visible then
+                GameCompleted = true
+            end
         end
         if GameCompleted then return end
 
         local myPos = HRP.Position
         local target = GetBestTarget()
         local moveTarget = nil
-        local dodgeOffset = Vector3.zero
 
         -- =========================
-        -- AUTO DODGE (léger, non prioritaire)
-        if tick() - LastDodgeTime > DODGE_COOLDOWN then
-            for _, obj in ipairs(Workspace:GetChildren()) do
-                if obj:IsA("BasePart")
-                and obj.Anchored
-                and not obj.CanCollide then
-                    local dist = (obj.Position - myPos).Magnitude
-                    if dist <= DODGE_RADIUS then
-                        dodgeOffset = (myPos - obj.Position).Unit * DODGE_FORCE
-                        LastDodgeTime = tick()
-                        break
-                    end
-                end
-            end
-        end
-
-        -- =========================
-        -- CHECKPOINT VALIDATION
+        -- CHECKPOINT VALIDATION (TOUJOURS)
         if checkpoints[CurrentCheckpointIndex]
         and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
+
             local cp = checkpoints[CurrentCheckpointIndex]
-            local flatMy = Vector3.new(myPos.X,0,myPos.Z)
-            local flatCP = Vector3.new(cp.X,0,cp.Z)
+            local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
+            local flatCP = Vector3.new(cp.X, 0, cp.Z)
+
             if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
                 CurrentCheckpointIndex += 1
                 LastCheckpointTime = tick()
@@ -190,7 +172,10 @@ return function(AutoFarmRef, AutoSpellRef)
             local distance = math.max(dir.Magnitude, 0.1)
             dir = dir.Unit
 
-            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
+            HRP.CFrame = CFrame.lookAt(
+                myPos,
+                Vector3.new(mobPos.X, myPos.Y, mobPos.Z)
+            )
 
             if distance > ATTACK_MIN_DISTANCE then
                 moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
@@ -205,9 +190,9 @@ return function(AutoFarmRef, AutoSpellRef)
                 end
 
                 if AutoSpellRef.Value then
-                    for _, k in ipairs({"Q","E","R"}) do
-                        local s = LocalPlayer:FindFirstChild("spell"..k)
-                        local c = LocalPlayer:FindFirstChild("cooldown"..k)
+                    for _, k in ipairs({ "Q", "E", "R" }) do
+                        local s = LocalPlayer:FindFirstChild("spell" .. k)
+                        local c = LocalPlayer:FindFirstChild("cooldown" .. k)
                         if s and s.Value and c and c.Value <= 0 then
                             ReplicatedStorage.useSpell:FireServer(k)
                             task.wait(SpellDelay)
@@ -218,16 +203,15 @@ return function(AutoFarmRef, AutoSpellRef)
         end
 
         -- =========================
-        -- CHECKPOINT MOVE
+        -- CHECKPOINT MOVE (SEULEMENT SI PAS DE MOB)
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
         -- =========================
-        -- FINAL MOVE (combat + dodge)
+        -- MOVE
         if moveTarget then
-            local finalPos = moveTarget + dodgeOffset
-            finalPos = Vector3.new(finalPos.X, myPos.Y, finalPos.Z)
+            local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
             if (finalPos - myPos).Magnitude > 0.1 then
                 Humanoid:MoveTo(finalPos)
             end
