@@ -100,7 +100,7 @@ return function(AutoFarmRef, AutoSpellRef)
         if not enemies then return nil end
 
         -- Priorité bosses
-        for _, bossName in ipairs({"Astral Cannon", "Heldeir", "Kaegyr"}) do
+        for _, bossName in ipairs({"Heldeir", "Kaegyr"}) do
             if IsMobAlive(bossName) then
                 local root = GetRoot(enemies[bossName])
                 if root then
