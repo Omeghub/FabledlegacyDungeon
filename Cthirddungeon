@@ -1,9 +1,9 @@
 -- AutoFarmDungeon.lua
 -- Auto farm + kiting + checkpoints + Bosses (Blightwyrm, Grandtree Tucker, Cursed Centaur)
+-- + fixe détection des mobs prioritaires (ex: Cursed Caster) même hors du NEARBY_MOB_RADIUS
 
 return function(AutoFarmRef, AutoSpellRef)
 
-    -- =========================
     -- SERVICES
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
@@ -13,7 +13,6 @@ return function(AutoFarmRef, AutoSpellRef)
     local LocalPlayer = Players.LocalPlayer
     local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-    -- =========================
     -- CONFIG
     local ATTACK_MIN_DISTANCE = 3
     local ATTACK_MAX_DISTANCE = 25 -- normal mobs
@@ -28,7 +27,6 @@ return function(AutoFarmRef, AutoSpellRef)
     local AttackDelay = 1
     local SpellDelay = 0.5
 
-    -- =========================
     -- CHECKPOINTS
     local checkpoints = {
         Vector3.new(1617.571, 115.575, 375.359),
@@ -50,7 +48,6 @@ return function(AutoFarmRef, AutoSpellRef)
     }
     local CurrentCheckpointIndex = 1
 
-    -- =========================
     -- STATE
     local Character, HRP, Humanoid
     local LastMoveTime = 0
@@ -59,7 +56,6 @@ return function(AutoFarmRef, AutoSpellRef)
     local GameCompleted = false
     local CHECKPOINT_COOLDOWN = 1
 
-    -- =========================
     -- UTILS
     local function GetRoot(model)
         if model.PrimaryPart then return model.PrimaryPart end
@@ -86,18 +82,18 @@ return function(AutoFarmRef, AutoSpellRef)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        -- Priorité bosses
-        for _, bossName in ipairs({"Blightwyrm", "Grandtree Tucker", "Cursed Centaur"}) do
-            if IsMobAlive(bossName) then
-                local root = GetRoot(enemies[bossName])
+        -- PRIORITÉ BOSS + Cursed Caster même loin
+        local PRIORITY_MOBS = {"Blightwyrm", "Grandtree Tucker", "Cursed Centaur", "Cursed Caster"}
+        for _, name in ipairs(PRIORITY_MOBS) do
+            if IsMobAlive(name) then
+                local root = GetRoot(enemies[name])
                 if root then
-                    print("--> Distance " .. bossName .. ": " .. math.floor((root.Position - HRP.Position).Magnitude*100)/100)
-                    return root, true -- le second return indique que c'est un boss
+                    return root, true -- le second return = boss/prio
                 end
             end
         end
 
-        -- Mobs normaux
+        -- MOBS NORMAUX DANS LE RAYON
         local closest, dist = nil, math.huge
         for _, mob in ipairs(enemies:GetChildren()) do
             if mob:IsA("Model") then
@@ -132,7 +128,6 @@ return function(AutoFarmRef, AutoSpellRef)
         SetupCharacter(char)
     end)
 
-    -- =========================
     -- MAIN LOOP
     RunService.Heartbeat:Connect(function()
         if not AutoFarmRef.Value then return end
@@ -165,7 +160,7 @@ return function(AutoFarmRef, AutoSpellRef)
             end
         end
 
-        -- Combat
+        -- Combat / Kiting
         if target then
             local mobPos = target.Position
             local dir = mobPos - myPos
@@ -174,17 +169,16 @@ return function(AutoFarmRef, AutoSpellRef)
 
             HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
 
+            -- Kiting si trop proche
             if distance > ATTACK_MIN_DISTANCE then
                 moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
             elseif distance < MOVE_MIN_DISTANCE then
                 moveTarget = myPos - dir * BACK_STEP
             end
 
-            -- Ajuste dynamique de ATTACK_MAX_DISTANCE pour les boss
+            -- Distance d’attaque
             local attackDistance = ATTACK_MAX_DISTANCE
-            if isBoss then
-                attackDistance = BOSS_ATTACK_DISTANCE
-            end
+            if isBoss then attackDistance = BOSS_ATTACK_DISTANCE end
 
             if distance <= attackDistance then
                 if tick() - LastSwingTime >= AttackDelay then
@@ -205,7 +199,7 @@ return function(AutoFarmRef, AutoSpellRef)
             end
         end
 
-        -- Move vers checkpoint si pas de target
+        -- Aller vers checkpoint si pas de target
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
