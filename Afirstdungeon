@@ -26,9 +26,9 @@ return function(AutoFarmRef, AutoSpellRef)
 
     -- === AUTO DODGE CONFIG ===
     local AUTO_DODGE = true
-    local DODGE_DISTANCE = 10      -- distance danger
-    local DODGE_STEP = 8           -- distance esquive
-    local DODGE_COOLDOWN = 0.6
+    local DODGE_RADIUS = 10
+    local DODGE_FORCE = 6
+    local DODGE_COOLDOWN = 0.4
 
     -- =========================
     -- CHECKPOINTS
@@ -89,19 +89,27 @@ return function(AutoFarmRef, AutoSpellRef)
         return false
     end
 
-    -- =========================
-    -- AUTO DODGE DETECTION
-    local function GetDangerPart()
-        for _, obj in ipairs(Workspace:GetChildren()) do
-            if obj:IsA("BasePart") and obj.Anchored and not obj.CanCollide then
-                local dist = (obj.Position - HRP.Position).Magnitude
-                if dist <= DODGE_DISTANCE then
-                    return obj
-                end
+-- =========================
+-- AUTO DODGE (NON PRIORITAIRE & FLUIDE)
+local dodgeOffset = Vector3.zero
+
+if tick() - LastDodgeTime > DODGE_COOLDOWN then
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if obj:IsA("BasePart")
+        and obj.Anchored
+        and not obj.CanCollide then
+
+            local dist = (obj.Position - myPos).Magnitude
+            if dist <= DODGE_RADIUS then
+                local away = (myPos - obj.Position).Unit
+                dodgeOffset = away * DODGE_FORCE
+                LastDodgeTime = tick()
+                break
             end
         end
-        return nil
     end
+end
+
 
     local function GetBestTarget()
         local enemies = Workspace:FindFirstChild("Enemies")
