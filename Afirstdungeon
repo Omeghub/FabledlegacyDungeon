@@ -17,12 +17,12 @@ return function(AutoFarmRef, AutoSpellRef)
     local MOVE_MIN_DISTANCE = 4
     local BACK_STEP = 3
 
-    local MOVE_REFRESH = 0.3
+    local MOVE_REFRESH = 0.25
     local CHECKPOINT_REACH = 5
-    local NEARBY_MOB_RADIUS = 75
+    local NEARBY_MOB_RADIUS = 60
 
     local AttackDelay = 1
-    local SpellDelay = 0.5
+    local SpellDelay = 0.4
 
     -- =========================
     -- CHECKPOINTS
@@ -33,7 +33,7 @@ return function(AutoFarmRef, AutoSpellRef)
         Vector3.new(1564.048,31.389,-324.188),
         Vector3.new(1593.990,31.389,-266.048),
 
-        -- ROOM 4
+        -- ROOM 4 (NE PAS SUPPRIMER AVANT 5/7)
         Vector3.new(1489.746,62.712,-217.690),
         Vector3.new(1413.490,62.712,-181.697),
         Vector3.new(1458.985,62.712,-85.676),
@@ -51,7 +51,6 @@ return function(AutoFarmRef, AutoSpellRef)
 
     local CurrentCheckpointIndex = 1
 
-    -- ROOM 4 RANGE
     local ROOM4_START = 6
     local ROOM4_END = 10
 
@@ -61,7 +60,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local LastMoveTime = 0
     local LastSwingTime = 0
     local LastCheckpointTime = 0
-    local GameCompleted = false
+
     local CHECKPOINT_COOLDOWN = 1
 
     -- =========================
@@ -79,13 +78,10 @@ return function(AutoFarmRef, AutoSpellRef)
     local function GetCurrentRoom()
         local gui = PlayerGui:FindFirstChild("TopbarStandard")
         if not gui then return nil end
-
         for _, v in ipairs(gui:GetDescendants()) do
             if v:IsA("TextLabel") then
                 local r = string.match(v.Text, "(%d+)/%d+")
-                if r then
-                    return tonumber(r)
-                end
+                if r then return tonumber(r) end
             end
         end
         return nil
@@ -94,7 +90,6 @@ return function(AutoFarmRef, AutoSpellRef)
     local function IsMobAlive(name)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return false end
-
         local mob = enemies:FindFirstChild(name)
         if mob then
             local hum = mob:FindFirstChildOfClass("Humanoid")
@@ -103,16 +98,26 @@ return function(AutoFarmRef, AutoSpellRef)
         return false
     end
 
-    local function GetBestTarget()
+    local function GetBossTarget()
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        if IsMobAlive("Beastmaster Joe & Abbadon") then
-            return GetRoot(enemies["Beastmaster Joe & Abbadon"])
+        for _, bossName in ipairs({
+            "Beastmaster Joe & Abbadon",
+            "The Beast King",
+            "Cursed Centaur"
+        }) do
+            if IsMobAlive(bossName) then
+                print("🎯 Boss détecté :", bossName)
+                return GetRoot(enemies[bossName])
+            end
         end
-        if IsMobAlive("The Beast King") then
-            return GetRoot(enemies["The Beast King"])
-        end
+        return nil
+    end
+
+    local function GetNearestMob()
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if not enemies then return nil end
 
         local closest, dist = nil, math.huge
         for _, mob in ipairs(enemies:GetChildren()) do
@@ -128,7 +133,6 @@ return function(AutoFarmRef, AutoSpellRef)
                 end
             end
         end
-
         return closest
     end
 
@@ -157,28 +161,26 @@ return function(AutoFarmRef, AutoSpellRef)
         LastMoveTime = tick()
 
         local myPos = HRP.Position
-        local target = GetBestTarget()
         local moveTarget = nil
 
+        local bossTarget = GetBossTarget()
+        local mobTarget = GetNearestMob()
+        local target = bossTarget or mobTarget
+
         -- =========================
-        -- CHECKPOINT VALIDATION (ROOM 4 SAFE)
+        -- CHECKPOINT LOGIC
+        local room = GetCurrentRoom()
         if checkpoints[CurrentCheckpointIndex]
         and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
 
             local cp = checkpoints[CurrentCheckpointIndex]
-            local flatMy = Vector3.new(myPos.X,0,myPos.Z)
-            local flatCP = Vector3.new(cp.X,0,cp.Z)
-
-            if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
-                local room = GetCurrentRoom()
-
-                if not (
-                    room == 4
-                    and CurrentCheckpointIndex >= ROOM4_START
-                    and CurrentCheckpointIndex <= ROOM4_END
-                ) then
+            if (Vector3.new(cp.X,0,cp.Z) - Vector3.new(myPos.X,0,myPos.Z)).Magnitude <= CHECKPOINT_REACH then
+                if not (room == 4 and CurrentCheckpointIndex >= ROOM4_START and CurrentCheckpointIndex <= ROOM4_END) then
                     CurrentCheckpointIndex += 1
                     LastCheckpointTime = tick()
+                    print("➡️ Checkpoint avancé :", CurrentCheckpointIndex)
+                else
+                    print("⛔ Checkpoint room 4 bloqué (pas 5/7)")
                 end
             end
         end
@@ -187,33 +189,34 @@ return function(AutoFarmRef, AutoSpellRef)
         -- COMBAT
         if target then
             local mobPos = target.Position
-            local dir = (mobPos - myPos).Unit
-            local distance = (mobPos - myPos).Magnitude
+            local dir = (mobPos - myPos)
+            local dist = math.max(dir.Magnitude, 0.1)
+            dir = dir.Unit
 
-            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X,myPos.Y,mobPos.Z))
+            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
 
-            if distance > ATTACK_MIN_DISTANCE then
+            if dist > ATTACK_MIN_DISTANCE then
                 moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
-            elseif distance < MOVE_MIN_DISTANCE then
+            elseif dist < MOVE_MIN_DISTANCE then
                 moveTarget = myPos - dir * BACK_STEP
             end
 
-            if distance <= ATTACK_MAX_DISTANCE then
-                if tick() - LastSwingTime >= AttackDelay then
-                    ReplicatedStorage.Swing:FireServer()
-                    LastSwingTime = tick()
-                end
+            if dist <= ATTACK_MAX_DISTANCE and tick() - LastSwingTime >= AttackDelay then
+                ReplicatedStorage.Swing:FireServer()
+                LastSwingTime = tick()
             end
         end
 
         -- =========================
-        -- MOVE
-        if not target and checkpoints[CurrentCheckpointIndex] then
+        -- CHECKPOINT MOVE (SI PAS DE BOSS)
+        if not bossTarget and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
+        -- =========================
+        -- MOVE
         if moveTarget then
-            Humanoid:MoveTo(Vector3.new(moveTarget.X,myPos.Y,moveTarget.Z))
+            Humanoid:MoveTo(Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z))
         end
     end)
 end
