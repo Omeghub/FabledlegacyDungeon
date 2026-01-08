@@ -17,13 +17,12 @@ return function(AutoFarmRef, AutoSpellRef)
     local MOVE_MIN_DISTANCE = 4
     local BACK_STEP = 3
 
-    local MOVE_REFRESH = 0.3 -- fréquence des décisions (anti jitter)
+    local MOVE_REFRESH = 0.3
     local CHECKPOINT_REACH = 5
     local NEARBY_MOB_RADIUS = 75
 
     local AttackDelay = 1
     local SpellDelay = 0.5
-
     local CHECKPOINT_COOLDOWN = 1
 
     -- =========================
@@ -52,7 +51,6 @@ return function(AutoFarmRef, AutoSpellRef)
 
     local room4StartIndex = 6
     local room4EndIndex = 10
-
     local CurrentCheckpointIndex = 1
 
     -- =========================
@@ -68,9 +66,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local function GetRoot(model)
         if model.PrimaryPart then return model.PrimaryPart end
         for _, v in ipairs(model:GetDescendants()) do
-            if v:IsA("BasePart") then
-                return v
-            end
+            if v:IsA("BasePart") then return v end
         end
         return nil
     end
@@ -78,7 +74,6 @@ return function(AutoFarmRef, AutoSpellRef)
     local function IsMobAlive(name)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return false end
-
         local mob = enemies:FindFirstChild(name)
         if mob then
             local hum = mob:FindFirstChildOfClass("Humanoid")
@@ -112,7 +107,6 @@ return function(AutoFarmRef, AutoSpellRef)
                 end
             end
         end
-
         return closest
     end
 
@@ -140,7 +134,6 @@ return function(AutoFarmRef, AutoSpellRef)
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
 
-        -- =========================
         -- COMPLETION CHECK
         local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
         if completionScreen and completionScreen:FindFirstChild("CompletionBorder") then
@@ -156,21 +149,16 @@ return function(AutoFarmRef, AutoSpellRef)
 
         -- =========================
         -- CHECKPOINT VALIDATION
-        if checkpoints[CurrentCheckpointIndex]
-        and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
-
+        if checkpoints[CurrentCheckpointIndex] and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
             local cp = checkpoints[CurrentCheckpointIndex]
-            local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
-            local flatCP = Vector3.new(cp.X, 0, cp.Z)
+            local flatMy = Vector3.new(myPos.X,0,myPos.Z)
+            local flatCP = Vector3.new(cp.X,0,cp.Z)
 
-            -- Gestion spéciale room 4 : on ne passe pas à la room suivante tant que room 4 n'est pas terminée
-            if CurrentCheckpointIndex >= room4StartIndex and CurrentCheckpointIndex <= room4EndIndex then
-                if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
-                    CurrentCheckpointIndex += 1
-                    LastCheckpointTime = tick()
-                end
-            else
-                -- Autres checkpoints normaux
+            local inRoom4 = CurrentCheckpointIndex >= room4StartIndex and CurrentCheckpointIndex <= room4EndIndex
+            local guiRoomLabel = PlayerGui.TopbarStandard.Holders.Left:GetChildren()[3].IconButton.Menu.IconSpot.Contents.IconLabelContainer.IconLabel
+            local stillInRoom4 = inRoom4 and guiRoomLabel.Text == "4/7" -- juste check, pas modifier
+
+            if not inRoom4 or stillInRoom4 then
                 if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
                     CurrentCheckpointIndex += 1
                     LastCheckpointTime = tick()
@@ -186,10 +174,7 @@ return function(AutoFarmRef, AutoSpellRef)
             local distance = math.max(dir.Magnitude, 0.1)
             dir = dir.Unit
 
-            HRP.CFrame = CFrame.lookAt(
-                myPos,
-                Vector3.new(mobPos.X, myPos.Y, mobPos.Z)
-            )
+            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
 
             if distance > ATTACK_MIN_DISTANCE then
                 moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
@@ -204,9 +189,9 @@ return function(AutoFarmRef, AutoSpellRef)
                 end
 
                 if AutoSpellRef.Value then
-                    for _, k in ipairs({ "Q", "E", "R" }) do
-                        local s = LocalPlayer:FindFirstChild("spell" .. k)
-                        local c = LocalPlayer:FindFirstChild("cooldown" .. k)
+                    for _, k in ipairs({"Q","E","R"}) do
+                        local s = LocalPlayer:FindFirstChild("spell"..k)
+                        local c = LocalPlayer:FindFirstChild("cooldown"..k)
                         if s and s.Value and c and c.Value <= 0 then
                             ReplicatedStorage.useSpell:FireServer(k)
                             task.wait(SpellDelay)
@@ -217,43 +202,16 @@ return function(AutoFarmRef, AutoSpellRef)
         end
 
         -- =========================
-        -- CHECKPOINT MOVE
+        -- MOVE
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
-        -- =========================
-        -- MOVE
         if moveTarget then
             local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
             if (finalPos - myPos).Magnitude > 0.1 then
                 Humanoid:MoveTo(finalPos)
             end
         end
-
-        -- =========================
-        -- GUI : Room et nombre de mobs
-        -- Room label (room 4 = 4/7)
-        local roomLabel = PlayerGui.TopbarStandard.Holders.Left:GetChildren()[3].IconButton.Menu.IconSpot.Contents.IconLabelContainer.IconLabel
-        local currentRoom = (CurrentCheckpointIndex >= room4StartIndex and CurrentCheckpointIndex <= room4EndIndex) and 4 or "?"
-        roomLabel.Text = currentRoom.."/7"
-
-        -- Mob count
-        local enemies = Workspace:FindFirstChild("Enemies")
-        local mobCount = 0
-        if enemies then
-            for _, mob in ipairs(enemies:GetChildren()) do
-                if mob:IsA("Model") then
-                    local root = GetRoot(mob)
-                    if root and (root.Position - HRP.Position).Magnitude <= NEARBY_MOB_RADIUS then
-                        mobCount += 1
-                    end
-                end
-            end
-        end
-
-        local mobLabel = PlayerGui.TopbarStandard.Holders.Left.Widget.IconButton.Menu.IconSpot.Contents.IconLabelContainer.IconLabel
-        mobLabel.Text = mobCount
-
     end)
 end
