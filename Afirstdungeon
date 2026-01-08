@@ -24,6 +24,8 @@ return function(AutoFarmRef, AutoSpellRef)
     local AttackDelay = 1
     local SpellDelay = 0.5
 
+    local CHECKPOINT_COOLDOWN = 1
+
     -- =========================
     -- CHECKPOINTS
     local checkpoints = {
@@ -32,11 +34,13 @@ return function(AutoFarmRef, AutoSpellRef)
         Vector3.new(1683.689,6.116,-386.110),
         Vector3.new(1564.048,31.389,-324.188),
         Vector3.new(1593.990,31.389,-266.048),
+        -- Room 4
         Vector3.new(1489.746,62.712,-217.690),
         Vector3.new(1413.490,62.712,-181.697),
         Vector3.new(1458.985,62.712,-85.676),
         Vector3.new(1490.300,62.712,-70.339),
         Vector3.new(1562.556,62.712,-59.482),
+        -- Room 5+
         Vector3.new(1650.999,60.516,-36.131),
         Vector3.new(1701.859,60.516,-27.420),
         Vector3.new(1764.283,60.516,92.626),
@@ -45,6 +49,9 @@ return function(AutoFarmRef, AutoSpellRef)
         Vector3.new(1768.041,71.015,222.259),
         Vector3.new(1739.042,81.188,267.057)
     }
+
+    local room4StartIndex = 6
+    local room4EndIndex = 10
 
     local CurrentCheckpointIndex = 1
 
@@ -55,8 +62,6 @@ return function(AutoFarmRef, AutoSpellRef)
     local LastSwingTime = 0
     local LastCheckpointTime = 0
     local GameCompleted = false
-
-    local CHECKPOINT_COOLDOWN = 1
 
     -- =========================
     -- UTILS
@@ -150,7 +155,7 @@ return function(AutoFarmRef, AutoSpellRef)
         local moveTarget = nil
 
         -- =========================
-        -- CHECKPOINT VALIDATION (TOUJOURS)
+        -- CHECKPOINT VALIDATION
         if checkpoints[CurrentCheckpointIndex]
         and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
 
@@ -158,9 +163,18 @@ return function(AutoFarmRef, AutoSpellRef)
             local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
             local flatCP = Vector3.new(cp.X, 0, cp.Z)
 
-            if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
-                CurrentCheckpointIndex += 1
-                LastCheckpointTime = tick()
+            -- Gestion spéciale room 4 : on ne passe pas à la room suivante tant que room 4 n'est pas terminée
+            if CurrentCheckpointIndex >= room4StartIndex and CurrentCheckpointIndex <= room4EndIndex then
+                if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
+                    CurrentCheckpointIndex += 1
+                    LastCheckpointTime = tick()
+                end
+            else
+                -- Autres checkpoints normaux
+                if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
+                    CurrentCheckpointIndex += 1
+                    LastCheckpointTime = tick()
+                end
             end
         end
 
@@ -203,7 +217,7 @@ return function(AutoFarmRef, AutoSpellRef)
         end
 
         -- =========================
-        -- CHECKPOINT MOVE (SEULEMENT SI PAS DE MOB)
+        -- CHECKPOINT MOVE
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
@@ -216,5 +230,30 @@ return function(AutoFarmRef, AutoSpellRef)
                 Humanoid:MoveTo(finalPos)
             end
         end
+
+        -- =========================
+        -- GUI : Room et nombre de mobs
+        -- Room label (room 4 = 4/7)
+        local roomLabel = PlayerGui.TopbarStandard.Holders.Left:GetChildren()[3].IconButton.Menu.IconSpot.Contents.IconLabelContainer.IconLabel
+        local currentRoom = (CurrentCheckpointIndex >= room4StartIndex and CurrentCheckpointIndex <= room4EndIndex) and 4 or "?"
+        roomLabel.Text = currentRoom.."/7"
+
+        -- Mob count
+        local enemies = Workspace:FindFirstChild("Enemies")
+        local mobCount = 0
+        if enemies then
+            for _, mob in ipairs(enemies:GetChildren()) do
+                if mob:IsA("Model") then
+                    local root = GetRoot(mob)
+                    if root and (root.Position - HRP.Position).Magnitude <= NEARBY_MOB_RADIUS then
+                        mobCount += 1
+                    end
+                end
+            end
+        end
+
+        local mobLabel = PlayerGui.TopbarStandard.Holders.Left.Widget.IconButton.Menu.IconSpot.Contents.IconLabelContainer.IconLabel
+        mobLabel.Text = mobCount
+
     end)
 end
