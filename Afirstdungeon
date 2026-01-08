@@ -17,7 +17,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local MOVE_MIN_DISTANCE = 4
     local BACK_STEP = 3
 
-    local MOVE_REFRESH = 0.25
+    local MOVE_REFRESH = 0.3
     local CHECKPOINT_REACH = 5
     local NEARBY_MOB_RADIUS = 75
 
@@ -25,7 +25,7 @@ return function(AutoFarmRef, AutoSpellRef)
     local SpellDelay = 0.5
 
     -- =========================
-    -- CHECKPOINTS (FULL PATH)
+    -- CHECKPOINTS
     local checkpoints = {
         Vector3.new(1653.438,6.109,-612.607),
         Vector3.new(1722.797,6.109,-484.297),
@@ -33,14 +33,13 @@ return function(AutoFarmRef, AutoSpellRef)
         Vector3.new(1564.048,31.389,-324.188),
         Vector3.new(1593.990,31.389,-266.048),
 
-        -- ROOM 4 (LOCKED)
-        Vector3.new(1489.746,62.712,-217.690),
-        Vector3.new(1413.490,62.712,-181.697),
-        Vector3.new(1458.985,62.712,-85.676),
-        Vector3.new(1490.300,62.712,-70.339),
-        Vector3.new(1562.556,62.712,-59.482),
+        -- ROOM 4 (DO NOT CONSUME UNTIL 5/7)
+        Vector3.new(1489.746,62.712,-217.690), -- 6
+        Vector3.new(1413.490,62.712,-181.697), -- 7
+        Vector3.new(1458.985,62.712,-85.676),  -- 8
+        Vector3.new(1490.300,62.712,-70.339),  -- 9
+        Vector3.new(1562.556,62.712,-59.482),  -- 10
 
-        -- AFTER
         Vector3.new(1650.999,60.516,-36.131),
         Vector3.new(1701.859,60.516,-27.420),
         Vector3.new(1764.283,60.516,92.626),
@@ -50,10 +49,12 @@ return function(AutoFarmRef, AutoSpellRef)
         Vector3.new(1739.042,81.188,267.057)
     }
 
-    local ROOM4_START = 6
-    local ROOM4_END   = 10
-
     local CurrentCheckpointIndex = 1
+
+    -- =========================
+    -- ROOM 4 LOCK CONFIG
+    local ROOM4_START = 6
+    local ROOM4_END = 10
 
     -- =========================
     -- STATE
@@ -62,62 +63,79 @@ return function(AutoFarmRef, AutoSpellRef)
     local LastSwingTime = 0
     local LastCheckpointTime = 0
     local GameCompleted = false
-
     local CHECKPOINT_COOLDOWN = 1
 
     -- =========================
     -- UTILS
     local function GetRoot(model)
-        return model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+        if model.PrimaryPart then return model.PrimaryPart end
+        for _, v in ipairs(model:GetDescendants()) do
+            if v:IsA("BasePart") then
+                return v
+            end
+        end
+        return nil
     end
 
     local function GetCurrentRoom()
-        local ui = PlayerGui:FindFirstChild("TopbarStandard")
-        if not ui then return nil end
+        local gui = PlayerGui:FindFirstChild("TopbarStandard")
+        if not gui then return nil end
 
-        for _, v in ipairs(ui:GetDescendants()) do
+        local holders = gui:FindFirstChild("Holders")
+        if not holders then return nil end
+
+        local left = holders:FindFirstChild("Left")
+        if not left then return nil end
+
+        for _, v in ipairs(left:GetDescendants()) do
             if v:IsA("TextLabel") then
-                local r = v.Text:match("(%d+)%s*/%s*%d+")
-                if r then
-                    return tonumber(r)
+                local room = string.match(v.Text, "(%d+)/%d+")
+                if room then
+                    return tonumber(room)
                 end
             end
         end
         return nil
     end
 
+    local function IsMobAlive(name)
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if not enemies then return false end
+
+        local mob = enemies:FindFirstChild(name)
+        if mob then
+            local hum = mob:FindFirstChildOfClass("Humanoid")
+            return hum and hum.Health > 0
+        end
+        return false
+    end
+
     local function GetBestTarget()
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        -- PRIORITÉ BOSS
-        for _, name in ipairs({
-            "Beastmaster Joe & Abbadon",
-            "The Beast King",
-            "Cursed Centaur"
-        }) do
-            local mob = enemies:FindFirstChild(name)
-            if mob then
+        if IsMobAlive("Beastmaster Joe & Abbadon") then
+            return GetRoot(enemies["Beastmaster Joe & Abbadon"])
+        end
+        if IsMobAlive("The Beast King") then
+            return GetRoot(enemies["The Beast King"])
+        end
+
+        local closest, dist = nil, math.huge
+        for _, mob in ipairs(enemies:GetChildren()) do
+            if mob:IsA("Model") then
                 local hum = mob:FindFirstChildOfClass("Humanoid")
-                if hum and hum.Health > 0 then
-                    return GetRoot(mob)
+                local root = GetRoot(mob)
+                if hum and root and hum.Health > 0 then
+                    local d = (root.Position - HRP.Position).Magnitude
+                    if d < dist and d <= NEARBY_MOB_RADIUS then
+                        dist = d
+                        closest = root
+                    end
                 end
             end
         end
 
-        -- mobs proches seulement
-        local closest, dist = nil, math.huge
-        for _, mob in ipairs(enemies:GetChildren()) do
-            local hum = mob:FindFirstChildOfClass("Humanoid")
-            local root = GetRoot(mob)
-            if hum and root and hum.Health > 0 then
-                local d = (root.Position - HRP.Position).Magnitude
-                if d < dist and d <= NEARBY_MOB_RADIUS then
-                    closest = root
-                    dist = d
-                end
-            end
-        end
         return closest
     end
 
@@ -145,63 +163,87 @@ return function(AutoFarmRef, AutoSpellRef)
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
 
-        local room = GetCurrentRoom()
+        local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
+        if completionScreen and completionScreen:FindFirstChild("CompletionBorder") then
+            if completionScreen.CompletionBorder.Visible then
+                GameCompleted = true
+            end
+        end
+        if GameCompleted then return end
+
         local myPos = HRP.Position
         local target = GetBestTarget()
         local moveTarget = nil
 
         -- =========================
-        -- ROOM 4 LOCK (CRITICAL)
-        if room and room < 5 then
-            if CurrentCheckpointIndex > ROOM4_END then
-                CurrentCheckpointIndex = ROOM4_END
-            end
-            if CurrentCheckpointIndex < ROOM4_START then
-                CurrentCheckpointIndex = ROOM4_START
-            end
-        end
+        -- CHECKPOINT VALIDATION (ROOM 4 SAFE)
+        if checkpoints[CurrentCheckpointIndex]
+        and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
 
-        -- =========================
-        -- CHECKPOINT VALIDATION
-        local cp = checkpoints[CurrentCheckpointIndex]
-        if cp and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
-            if (Vector3.new(cp.X,0,cp.Z) - Vector3.new(myPos.X,0,myPos.Z)).Magnitude <= CHECKPOINT_REACH then
-                if not (room and room < 5 and CurrentCheckpointIndex >= ROOM4_END) then
-                    CurrentCheckpointIndex += 1
-                    LastCheckpointTime = tick()
+            local cp = checkpoints[CurrentCheckpointIndex]
+            local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
+            local flatCP = Vector3.new(cp.X, 0, cp.Z)
+
+            if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
+                local room = GetCurrentRoom()
+
+                if room == 4
+                and CurrentCheckpointIndex >= ROOM4_START
+                and CurrentCheckpointIndex <= ROOM4_END then
+                    return
                 end
+
+                CurrentCheckpointIndex += 1
+                LastCheckpointTime = tick()
             end
         end
 
         -- =========================
         -- COMBAT
         if target then
-            local dir = (target.Position - myPos)
-            local dist = dir.Magnitude
+            local mobPos = target.Position
+            local dir = mobPos - myPos
+            local distance = math.max(dir.Magnitude, 0.1)
             dir = dir.Unit
 
-            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(target.Position.X,myPos.Y,target.Position.Z))
+            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
 
-            if dist > ATTACK_MIN_DISTANCE then
-                moveTarget = target.Position - dir * ATTACK_MIN_DISTANCE
-            elseif dist < MOVE_MIN_DISTANCE then
+            if distance > ATTACK_MIN_DISTANCE then
+                moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
+            elseif distance < MOVE_MIN_DISTANCE then
                 moveTarget = myPos - dir * BACK_STEP
             end
 
-            if dist <= ATTACK_MAX_DISTANCE and tick() - LastSwingTime >= AttackDelay then
-                ReplicatedStorage.Swing:FireServer()
-                LastSwingTime = tick()
+            if distance <= ATTACK_MAX_DISTANCE then
+                if tick() - LastSwingTime >= AttackDelay then
+                    ReplicatedStorage.Swing:FireServer()
+                    LastSwingTime = tick()
+                end
+
+                if AutoSpellRef.Value then
+                    for _, k in ipairs({ "Q", "E", "R" }) do
+                        local s = LocalPlayer:FindFirstChild("spell" .. k)
+                        local c = LocalPlayer:FindFirstChild("cooldown" .. k)
+                        if s and s.Value and c and c.Value <= 0 then
+                            ReplicatedStorage.useSpell:FireServer(k)
+                            task.wait(SpellDelay)
+                        end
+                    end
+                end
             end
         end
 
         -- =========================
-        -- MOVE TO CHECKPOINT (NO TARGET)
+        -- MOVE TO CHECKPOINT IF NO TARGET
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
         if moveTarget then
-            Humanoid:MoveTo(Vector3.new(moveTarget.X,myPos.Y,moveTarget.Z))
+            local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
+            if (finalPos - myPos).Magnitude > 0.1 then
+                Humanoid:MoveTo(finalPos)
+            end
         end
     end)
 end
