@@ -33,12 +33,12 @@ return function(AutoFarmRef, AutoSpellRef)
         Vector3.new(1564.048,31.389,-324.188),
         Vector3.new(1593.990,31.389,-266.048),
 
-        -- ROOM 4 (DO NOT CONSUME UNTIL 5/7)
-        Vector3.new(1489.746,62.712,-217.690), -- 6
-        Vector3.new(1413.490,62.712,-181.697), -- 7
-        Vector3.new(1458.985,62.712,-85.676),  -- 8
-        Vector3.new(1490.300,62.712,-70.339),  -- 9
-        Vector3.new(1562.556,62.712,-59.482),  -- 10
+        -- ROOM 4
+        Vector3.new(1489.746,62.712,-217.690),
+        Vector3.new(1413.490,62.712,-181.697),
+        Vector3.new(1458.985,62.712,-85.676),
+        Vector3.new(1490.300,62.712,-70.339),
+        Vector3.new(1562.556,62.712,-59.482),
 
         Vector3.new(1650.999,60.516,-36.131),
         Vector3.new(1701.859,60.516,-27.420),
@@ -51,8 +51,7 @@ return function(AutoFarmRef, AutoSpellRef)
 
     local CurrentCheckpointIndex = 1
 
-    -- =========================
-    -- ROOM 4 LOCK CONFIG
+    -- ROOM 4 RANGE
     local ROOM4_START = 6
     local ROOM4_END = 10
 
@@ -81,17 +80,11 @@ return function(AutoFarmRef, AutoSpellRef)
         local gui = PlayerGui:FindFirstChild("TopbarStandard")
         if not gui then return nil end
 
-        local holders = gui:FindFirstChild("Holders")
-        if not holders then return nil end
-
-        local left = holders:FindFirstChild("Left")
-        if not left then return nil end
-
-        for _, v in ipairs(left:GetDescendants()) do
+        for _, v in ipairs(gui:GetDescendants()) do
             if v:IsA("TextLabel") then
-                local room = string.match(v.Text, "(%d+)/%d+")
-                if room then
-                    return tonumber(room)
+                local r = string.match(v.Text, "(%d+)/%d+")
+                if r then
+                    return tonumber(r)
                 end
             end
         end
@@ -163,14 +156,6 @@ return function(AutoFarmRef, AutoSpellRef)
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
 
-        local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
-        if completionScreen and completionScreen:FindFirstChild("CompletionBorder") then
-            if completionScreen.CompletionBorder.Visible then
-                GameCompleted = true
-            end
-        end
-        if GameCompleted then return end
-
         local myPos = HRP.Position
         local target = GetBestTarget()
         local moveTarget = nil
@@ -181,20 +166,20 @@ return function(AutoFarmRef, AutoSpellRef)
         and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
 
             local cp = checkpoints[CurrentCheckpointIndex]
-            local flatMy = Vector3.new(myPos.X, 0, myPos.Z)
-            local flatCP = Vector3.new(cp.X, 0, cp.Z)
+            local flatMy = Vector3.new(myPos.X,0,myPos.Z)
+            local flatCP = Vector3.new(cp.X,0,cp.Z)
 
             if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
                 local room = GetCurrentRoom()
 
-                if room == 4
-                and CurrentCheckpointIndex >= ROOM4_START
-                and CurrentCheckpointIndex <= ROOM4_END then
-                    return
+                if not (
+                    room == 4
+                    and CurrentCheckpointIndex >= ROOM4_START
+                    and CurrentCheckpointIndex <= ROOM4_END
+                ) then
+                    CurrentCheckpointIndex += 1
+                    LastCheckpointTime = tick()
                 end
-
-                CurrentCheckpointIndex += 1
-                LastCheckpointTime = tick()
             end
         end
 
@@ -202,11 +187,10 @@ return function(AutoFarmRef, AutoSpellRef)
         -- COMBAT
         if target then
             local mobPos = target.Position
-            local dir = mobPos - myPos
-            local distance = math.max(dir.Magnitude, 0.1)
-            dir = dir.Unit
+            local dir = (mobPos - myPos).Unit
+            local distance = (mobPos - myPos).Magnitude
 
-            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
+            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X,myPos.Y,mobPos.Z))
 
             if distance > ATTACK_MIN_DISTANCE then
                 moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
@@ -219,31 +203,17 @@ return function(AutoFarmRef, AutoSpellRef)
                     ReplicatedStorage.Swing:FireServer()
                     LastSwingTime = tick()
                 end
-
-                if AutoSpellRef.Value then
-                    for _, k in ipairs({ "Q", "E", "R" }) do
-                        local s = LocalPlayer:FindFirstChild("spell" .. k)
-                        local c = LocalPlayer:FindFirstChild("cooldown" .. k)
-                        if s and s.Value and c and c.Value <= 0 then
-                            ReplicatedStorage.useSpell:FireServer(k)
-                            task.wait(SpellDelay)
-                        end
-                    end
-                end
             end
         end
 
         -- =========================
-        -- MOVE TO CHECKPOINT IF NO TARGET
+        -- MOVE
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
         if moveTarget then
-            local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
-            if (finalPos - myPos).Magnitude > 0.1 then
-                Humanoid:MoveTo(finalPos)
-            end
+            Humanoid:MoveTo(Vector3.new(moveTarget.X,myPos.Y,moveTarget.Z))
         end
     end)
 end
