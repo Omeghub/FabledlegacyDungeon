@@ -30,6 +30,7 @@ return function(AutoFarmRef, AutoSpellRef)
     -- =========================
     -- CHECKPOINTS
     local checkpoints = {
+        Vector3.new(-1267.120, 70.491, -344.538),
         Vector3.new(-967.760, 69.783, -350.010),
         Vector3.new(-886.963, 69.797, -428.211),
         Vector3.new(-834.981, 69.802, -380.831),
