@@ -34,7 +34,8 @@ return function(AutoFarmRef, AutoSpellRef)
     -- RANGED MOBS
     local RANGED_MOBS = {
         ["Astral Cannon"] = true,
-        ["Kaegyr"] = true
+        ["Kaegyr"] = true,
+        ["Ragnarök"] = true
     }
 
     -- =========================
