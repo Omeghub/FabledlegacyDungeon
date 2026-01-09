@@ -1,5 +1,6 @@
 -- AutoFarmDungeon.lua
 -- Auto farm + kiting + checkpoints + Bosses + Astral Cannon FIX
+-- FIX: checkpoints par room (anti softlock mort / respawn)
 
 return function(AutoFarmRef, AutoSpellRef)
 
@@ -16,8 +17,8 @@ return function(AutoFarmRef, AutoSpellRef)
     -- =========================
     -- CONFIG
     local ATTACK_MIN_DISTANCE = 3
-    local ATTACK_MAX_DISTANCE = 25          -- mobs melee
-    local RANGED_MOB_ATTACK_DISTANCE = 45   -- Astral Cannon
+    local ATTACK_MAX_DISTANCE = 25
+    local RANGED_MOB_ATTACK_DISTANCE = 45
     local BOSS_ATTACK_DISTANCE = 65
 
     local MOVE_MIN_DISTANCE = 2
@@ -29,6 +30,7 @@ return function(AutoFarmRef, AutoSpellRef)
 
     local AttackDelay = 1
     local SpellDelay = 0.5
+    local CHECKPOINT_COOLDOWN = 1
 
     -- =========================
     -- RANGED MOBS
@@ -39,49 +41,57 @@ return function(AutoFarmRef, AutoSpellRef)
     }
 
     -- =========================
-    -- CHECKPOINTS
+    -- CHECKPOINTS (inchangés)
     local checkpoints = {
-Vector3.new(-25.964, 126.371, 34.238),
-Vector3.new(20.650, 132.932, 5.658),
-Vector3.new(18.610, 142.147, -51.221),
-Vector3.new(-2.782, 143.985, -106.854),
-Vector3.new(49.795, 143.985, -115.687),
-Vector3.new(-49.584, 143.985, -104.764),
-Vector3.new(-14.996, 143.890, -167.577),
-Vector3.new(-37.756, 151.806, -214.245),
-Vector3.new(-90.306, 158.675, -233.463),
-Vector3.new(-118.477, 166.919, -285.967),
-Vector3.new(-119.927, 168.658, -354.542),
-Vector3.new(-232.410, 195.133, -356.235),
-Vector3.new(-329.213, 221.959, -355.520),
-Vector3.new(-472.587, 222.450, -355.296),
-Vector3.new(-602.252, 143.761, -357.516),
-Vector3.new(-616.532, 143.761, -379.543),
-Vector3.new(-620.074, 143.761, -338.484),
-Vector3.new(-601.589, 143.528, -316.271),
-Vector3.new(-661.937, 143.610, -279.650),
-Vector3.new(-688.471, 144.330, -279.894),
-Vector3.new(-690.769, 130.092, -330.595),
-Vector3.new(-720.558, 118.447, -332.734),
-Vector3.new(-760.727, 118.172, -358.661),
-Vector3.new(-790.862, 118.186, -380.217),
-Vector3.new(-819.720, 132.335, -381.019),
-Vector3.new(-821.880, 146.580, -428.145),
-Vector3.new(-854.111, 145.860, -432.247),
-Vector3.new(-909.863, 146.325, -380.466),
-Vector3.new(-903.016, 145.860, -319.916),
-Vector3.new(-872.567, 145.860, -299.990),
-Vector3.new(-940.974, 146.325, -355.566),
-Vector3.new(-1081.151, 87.182, -358.066),
-Vector3.new(-1132.632, 88.793, -358.507),
-Vector3.new(-1141.830, 88.793, -280.770),
-Vector3.new(-1263.778, 87.182, -356.538),
-Vector3.new(-1357.391, 145.110, -356.989),
-Vector3.new(-1470.205, 143.794, -353.649),
-Vector3.new(-1497.471, 151.750, -484.430),
-Vector3.new(-1496.226, 286.949, -762.663),
-Vector3.new(-1505.625, 294.271, -993.020)
+        Vector3.new(-25.964,126.371,34.238),
+        Vector3.new(20.650,132.932,5.658),
+        Vector3.new(18.610,142.147,-51.221),
+        Vector3.new(-2.782,143.985,-106.854),
+        Vector3.new(49.795,143.985,-115.687),
+        Vector3.new(-49.584,143.985,-104.764),
+        Vector3.new(-14.996,143.890,-167.577),
+        Vector3.new(-37.756,151.806,-214.245),
+        Vector3.new(-90.306,158.675,-233.463),
+        Vector3.new(-118.477,166.919,-285.967),
+        Vector3.new(-119.927,168.658,-354.542),
+        Vector3.new(-232.410,195.133,-356.235),
+        Vector3.new(-329.213,221.959,-355.520),
+        Vector3.new(-472.587,222.450,-355.296),
+        -- ROOM 4
+        Vector3.new(-602.252,143.761,-357.516),
+        Vector3.new(-616.532,143.761,-379.543),
+        Vector3.new(-620.074,143.761,-338.484),
+        Vector3.new(-601.589,143.528,-316.271),
+        Vector3.new(-661.937,143.610,-279.650),
+        Vector3.new(-688.471,144.330,-279.894),
+        Vector3.new(-690.769,130.092,-330.595),
+        Vector3.new(-720.558,118.447,-332.734),
+        Vector3.new(-760.727,118.172,-358.661),
+        Vector3.new(-790.862,118.186,-380.217),
+        Vector3.new(-819.720,132.335,-381.019),
+        Vector3.new(-821.880,146.580,-428.145),
+        Vector3.new(-854.111,145.860,-432.247),
+        Vector3.new(-909.863,146.325,-380.466),
+        Vector3.new(-903.016,145.860,-319.916),
+        Vector3.new(-872.567,145.860,-299.990),
+        Vector3.new(-940.974,146.325,-355.566),
+        -- ROOM 5+
+        Vector3.new(-1081.151,87.182,-358.066),
+        Vector3.new(-1132.632,88.793,-358.507),
+        Vector3.new(-1141.830,88.793,-280.770),
+        Vector3.new(-1263.778,87.182,-356.538),
+        Vector3.new(-1357.391,145.110,-356.989),
+        Vector3.new(-1470.205,143.794,-353.649),
+        Vector3.new(-1497.471,151.750,-484.430),
+        Vector3.new(-1496.226,286.949,-762.663),
+        Vector3.new(-1505.625,294.271,-993.020)
+    }
 
+    -- =========================
+    -- ROOM → CHECKPOINT RANGES
+    local ROOM_CHECKPOINTS = {
+        [4] = { start = 15, finish = 31 },
+        [5] = { start = 32, finish = 39 }
     }
 
     local CurrentCheckpointIndex = 1
@@ -93,29 +103,36 @@ Vector3.new(-1505.625, 294.271, -993.020)
     local LastSwingTime = 0
     local LastCheckpointTime = 0
     local GameCompleted = false
-    local CHECKPOINT_COOLDOWN = 1
 
     -- =========================
     -- UTILS
     local function GetRoot(model)
         if model.PrimaryPart then return model.PrimaryPart end
         for _, v in ipairs(model:GetDescendants()) do
-            if v:IsA("BasePart") then
-                return v
-            end
+            if v:IsA("BasePart") then return v end
         end
-        return nil
     end
 
     local function IsMobAlive(name)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return false end
         local mob = enemies:FindFirstChild(name)
-        if mob then
-            local hum = mob:FindFirstChildOfClass("Humanoid")
-            return hum and hum.Health > 0
-        end
-        return false
+        if not mob then return false end
+        local hum = mob:FindFirstChildOfClass("Humanoid")
+        return hum and hum.Health > 0
+    end
+
+    -- =========================
+    -- ROOM FROM GUI (SOURCE DE VÉRITÉ)
+    local function GetCurrentRoom()
+        local label = PlayerGui
+            .TopbarStandard.Holders.Left
+            :GetChildren()[3]
+            .IconButton.Menu.IconSpot
+            .Contents.IconLabelContainer.IconLabel
+
+        if not label or not label.Text then return nil end
+        return tonumber(label.Text:match("%((%d+)/%d+%)"))
     end
 
     -- =========================
@@ -124,35 +141,22 @@ Vector3.new(-1505.625, 294.271, -993.020)
         local enemies = Workspace:FindFirstChild("Enemies")
         if not enemies then return nil end
 
-        -- Boss priority
-        for _, bossName in ipairs({"Heldeir",  "Ragnarök"}) do
+        for _, bossName in ipairs({"Heldeir","Ragnarök"}) do
             if IsMobAlive(bossName) then
-                local root = GetRoot(enemies[bossName])
-                if root then
-                    return root, true, false
-                end
+                return GetRoot(enemies[bossName]), true, false
             end
         end
 
-        -- Normal mobs + ranged mobs
         local closest, dist, isRanged = nil, math.huge, false
-
         for _, mob in ipairs(enemies:GetChildren()) do
             if mob:IsA("Model") then
                 local hum = mob:FindFirstChildOfClass("Humanoid")
                 local root = GetRoot(mob)
                 if hum and root and hum.Health > 0 then
                     local d = (root.Position - HRP.Position).Magnitude
-                    local maxDetect = NEARBY_MOB_RADIUS
-
-                    if RANGED_MOBS[mob.Name] then
-                        maxDetect = RANGED_MOB_ATTACK_DISTANCE
-                    end
-
+                    local maxDetect = RANGED_MOBS[mob.Name] and RANGED_MOB_ATTACK_DISTANCE or NEARBY_MOB_RADIUS
                     if d < dist and d <= maxDetect then
-                        dist = d
-                        closest = root
-                        isRanged = RANGED_MOBS[mob.Name] or false
+                        closest, dist, isRanged = root, d, RANGED_MOBS[mob.Name] or false
                     end
                 end
             end
@@ -177,93 +181,68 @@ Vector3.new(-1505.625, 294.271, -993.020)
     LocalPlayer.CharacterAdded:Connect(function(char)
         task.wait(1)
         SetupCharacter(char)
+
+        -- 🔒 SAFETY RESET APRÈS MORT
+        local room = GetCurrentRoom()
+        local data = ROOM_CHECKPOINTS[room]
+        if data then
+            CurrentCheckpointIndex = data.start
+        end
     end)
 
     -- =========================
     -- MAIN LOOP
     RunService.Heartbeat:Connect(function()
-        if not AutoFarmRef.Value then return end
-        if not HRP or not Humanoid or Humanoid.Health <= 0 then return end
+        if not AutoFarmRef.Value or not HRP or Humanoid.Health <= 0 then return end
         if tick() - LastMoveTime < MOVE_REFRESH then return end
         LastMoveTime = tick()
 
-        -- Completion check
-        local completionScreen = PlayerGui:FindFirstChild("CompletionScreen")
-        if completionScreen and completionScreen:FindFirstChild("CompletionBorder") then
-            if completionScreen.CompletionBorder.Visible then
-                GameCompleted = true
-            end
-        end
-        if GameCompleted then return end
-
         local myPos = HRP.Position
         local target, isBoss, isRanged = GetBestTarget()
-        local moveTarget = nil
+        local moveTarget
 
-        -- Checkpoint validation
+        -- CHECKPOINT LOGIC (ANTI SOFTLOCK)
+        local currentRoom = GetCurrentRoom()
         if checkpoints[CurrentCheckpointIndex]
         and tick() - LastCheckpointTime > CHECKPOINT_COOLDOWN then
+
             local cp = checkpoints[CurrentCheckpointIndex]
-            local flatMy = Vector3.new(myPos.X,0,myPos.Z)
-            local flatCP = Vector3.new(cp.X,0,cp.Z)
-            if (flatCP - flatMy).Magnitude <= CHECKPOINT_REACH then
-                CurrentCheckpointIndex += 1
-                LastCheckpointTime = tick()
+            if (Vector3.new(cp.X,0,cp.Z) - Vector3.new(myPos.X,0,myPos.Z)).Magnitude <= CHECKPOINT_REACH then
+                local roomData = ROOM_CHECKPOINTS[currentRoom]
+                if not roomData or CurrentCheckpointIndex >= roomData.finish then
+                    CurrentCheckpointIndex += 1
+                    LastCheckpointTime = tick()
+                end
             end
         end
 
-        -- Combat
+        -- COMBAT
         if target then
-            local mobPos = target.Position
-            local dir = mobPos - myPos
-            local distance = math.max(dir.Magnitude, 0.1)
+            local dir = (target.Position - myPos)
+            local dist = math.max(dir.Magnitude, 0.1)
             dir = dir.Unit
 
-            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(mobPos.X, myPos.Y, mobPos.Z))
+            HRP.CFrame = CFrame.lookAt(myPos, Vector3.new(target.Position.X, myPos.Y, target.Position.Z))
 
-            if distance > ATTACK_MIN_DISTANCE then
-                moveTarget = mobPos - dir * ATTACK_MIN_DISTANCE
-            elseif distance < MOVE_MIN_DISTANCE then
+            if dist > ATTACK_MIN_DISTANCE then
+                moveTarget = target.Position - dir * ATTACK_MIN_DISTANCE
+            elseif dist < MOVE_MIN_DISTANCE then
                 moveTarget = myPos - dir * BACK_STEP
             end
 
-            local attackDistance = ATTACK_MAX_DISTANCE
-            if isBoss then
-                attackDistance = BOSS_ATTACK_DISTANCE
-            elseif isRanged then
-                attackDistance = RANGED_MOB_ATTACK_DISTANCE
-            end
-
-            if distance <= attackDistance then
-                if tick() - LastSwingTime >= AttackDelay then
-                    ReplicatedStorage.Swing:FireServer()
-                    LastSwingTime = tick()
-                end
-
-                if AutoSpellRef.Value then
-                    for _, k in ipairs({"Q","E","R"}) do
-                        local s = LocalPlayer:FindFirstChild("spell"..k)
-                        local c = LocalPlayer:FindFirstChild("cooldown"..k)
-                        if s and s.Value and c and c.Value <= 0 then
-                            ReplicatedStorage.useSpell:FireServer(k)
-                            task.wait(SpellDelay)
-                        end
-                    end
-                end
+            local attackRange = isBoss and BOSS_ATTACK_DISTANCE or (isRanged and RANGED_MOB_ATTACK_DISTANCE or ATTACK_MAX_DISTANCE)
+            if dist <= attackRange and tick() - LastSwingTime >= AttackDelay then
+                ReplicatedStorage.Swing:FireServer()
+                LastSwingTime = tick()
             end
         end
 
-        -- Checkpoint move
         if not target and checkpoints[CurrentCheckpointIndex] then
             moveTarget = checkpoints[CurrentCheckpointIndex]
         end
 
-        -- Move
         if moveTarget then
-            local finalPos = Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z)
-            if (finalPos - myPos).Magnitude > 0.1 then
-                Humanoid:MoveTo(finalPos)
-            end
+            Humanoid:MoveTo(Vector3.new(moveTarget.X, myPos.Y, moveTarget.Z))
         end
     end)
 end
